@@ -262,8 +262,23 @@ print("solo again ok, energy", string.format("%.2f", S.energy))
 -- gradient's start/stop
 follow_dev.event({0xFC})
 assert(not S.playing, "midi stop not followed")
+assert(not S.following, "still following after a stop")
+-- a shared start: gradient's MIDI start lands on its bar line; breakage's
+-- first step comes a 16th later (no bar wait), its bar-1 pulse right after
+local bar0 = S.bar
 follow_dev.event({0xFA})
 assert(S.playing, "midi start not followed")
+tick_all(); tick_all()
+assert(S.bar == bar0 + 1, "first bar not played right after a midi start")
+cc(20, 64); cc(23, 127); cc(24, 0)
+assert(S.phrase_anchor == bar0 and S.phrase_pos == 0, "shared start: phrase not anchored on bar 1")
+-- pulses that arrive just before our downbeat (after step 15) belong to the next bar
+run_bars(31)
+while S.tstep % 16 ~= 0 do tick_all() end           -- step 15 just played
+cc(20, 64); cc(23, 127)
+assert(S.phrase_anchor == S.bar, "early pulse not placed on the coming bar")
+run_bars(1)
+assert(S.phrase_pos == 0, "phrase edge missed after an early pulse")
 run_bars(2)
 
 -- controls -----------------------------------------------------------------
@@ -303,6 +318,33 @@ for _, id in ipairs({"p_drop", "p_fill", "p_mutate", "p_strip", "p_throw", "p_bu
   P.defs[id].action()
 end
 run_bars(8)
+-- a drop lasts to the end of the next 8-bar block, not a bar short
+run_bars(8)
+for i = 1, 6 do tick_all() end
+local pos = (S.bar - 1 - S.phrase_anchor) % 8
+key(2, 1); key(2, 0)
+run_bars(16 - pos - 1)
+assert(S.drop_bars == 1 and not S.want.kick, "drop ended early")
+run_bars(1)
+assert(S.drop_bars == 0 and (S.bar - 1 - S.phrase_anchor) % 8 == 0, "drop didn't end on a block downbeat")
+-- a kit picked while playing, then stop + another pick: the later pick wins
+B.set_kit(2)
+key(2, 1); key(3, 1); key(3, 0); key(2, 0)
+assert(not S.playing)
+B.set_kit(5)
+key(2, 1); key(3, 1); key(3, 0); key(2, 0)
+run_bars(2)
+assert(S.kit == 5, "stale pending kit landed: " .. S.kit)
+-- track end = stop, then play again: it plays
+params:set("end_action", 1)
+params:set("play_mode", 2); params:set("track_minutes", 4)
+do local g = 0; while S.playing do tick_all(); g = g + 1; assert(g < 16 * 4 * 700, 'track never ended') end end
+assert(not S.playing, "track never ended")
+local b1 = S.bar
+key(2, 1); key(3, 1); key(3, 0); key(2, 0)
+for i = 1, 16 * 8 do tick_all() end
+assert(S.playing and S.bar > b1 + 4, "track mode won't play again after its end")
+params:set("end_action", 2)
 -- track mode runs to its end and rolls on
 params:set("play_mode", 2); params:set("track_minutes", 4)
 run_bars(300)

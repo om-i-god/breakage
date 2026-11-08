@@ -104,7 +104,7 @@ end
 local function glitch(mode, slice_q, beats)
   if S.glitch_amt == 1 then return end
   local b = beat_sec()
-  local dur = math.min(1.5, b * beats)
+  local dur = math.min(mode == 3 and 1 or 1.5, b * beats)   -- reverse reads back 2 s at most
   engine.glitch(mode, b * 0.25 * slice_q, dur, params:get("glitch_mix") / 100)
   VIS.event("glitch", mode, dur)
 end
@@ -323,6 +323,7 @@ local function play_step()
     local r = C.bar(S)
     if S.kit_changed then
       S.kit_changed = nil
+      params:set("kit", S.kit, true)
       if params:get("theme_mode") == 1 then theme = S.kit end
       kit_feel()
       VIS.event("kit", S.kit)
@@ -460,28 +461,30 @@ end
 -- transport
 ------------------------------------------------------------------------
 
-local function loop(my)
-  clock.sync(4)
-  if not S.playing or my ~= loop_gen then return end
-  S.tstep = 0
+-- the same order as gradient's loop (wait for the bar, then a 16th before
+-- each step), so the two land together. now = gradient's MIDI start just
+-- arrived on its bar line: skip the bar wait
+local function loop(my, now)
+  if not now then clock.sync(4) end
   while true do
-    if not S.playing or my ~= loop_gen then return end
-    play_step()
     clock.sync(1 / 4)
     local swing = params:get("swing") / 100 * (1 - S.chaos * 0.6)
     if S.tstep % 2 == 1 and swing > 0 then
       clock.sleep(beat_sec() * 0.25 * swing)
     end
+    if not S.playing or my ~= loop_gen then return end
+    play_step()
   end
 end
 
-start = function()
+start = function(now)
   if S.playing then return end
   S.playing = true
   S.bpm = clock.get_tempo()
+  S.tstep = 0
   loop_gen = loop_gen + 1
   local my = loop_gen
-  main_clock = clock.run(function() loop(my) end)
+  main_clock = clock.run(function() loop(my, now) end)
   flash("play")
 end
 
@@ -489,6 +492,9 @@ stop = function(from_loop)
   S.playing = false
   if main_clock and not from_loop then clock.cancel(main_clock) end
   main_clock = nil
+  S.kit_pending = nil
+  -- a later solo start shouldn't run on gradient's stale arc
+  S.following, S.f_kickless, S.f_energy = false, false, nil
   flash("stop")
 end
 
@@ -496,15 +502,21 @@ end
 -- actions
 ------------------------------------------------------------------------
 
+-- the running bar's place in its 8-bar block, counted from the phrase
+-- anchor (gradient's phrase when following); S.bar is already the next bar
+local function block_pos()
+  return (S.bar - 1 - (S.phrase_anchor or 0)) % 8
+end
+
 local function drop()
   if S.drop_bars > 0 then S.drop_bars = 0; flash("return")
-  else S.drop_bars = 16 - (S.bar % 8); flash("drop") end
+  else S.drop_bars = 16 - block_pos(); flash("drop") end
   C.decide(S)
 end
 
 local function strip()
   if S.strip_bars > 0 then S.strip_bars = 0; flash("full kit")
-  else S.strip_bars = 16 - (S.bar % 8); flash(S.brk_ready and "strip: break + glitch" or "strip: glitch") end
+  else S.strip_bars = 16 - block_pos(); flash(S.brk_ready and "strip: break + glitch" or "strip: glitch") end
   C.decide(S)
 end
 
@@ -523,7 +535,7 @@ end
 
 local function brk_down()
   S.nudge = clamp(S.nudge - 0.35, -1, 1)
-  S.drop_bars = 16 - (S.bar % 8)
+  S.drop_bars = 16 - block_pos()
   C.decide(S)
   flash("break")
 end
@@ -542,6 +554,7 @@ local function set_kit(i)
     flash("kit > " .. KT.names[i])
   else
     S.kit = i
+    S.kit_pending = nil
     C.mutate(S, true)
     C.decide(S)
     if params:get("theme_mode") == 1 then theme = i end
@@ -998,9 +1011,12 @@ end
 
 function init()
   VIS.init()
-  F.step_in_bar = function() return S.tstep % 16 end
+  F.step_in_bar = function()
+    if not S.playing or S.tstep == 0 then return nil end
+    return (S.tstep - 1) % 16
+  end
   F.init(S, {
-    start = function() start() end,
+    start = function() start(true) end,
     stop = function() stop() end,
     changed = function(on) flash(on and "following gradient" or "solo") end,
     late_phrase = function() S.phrase_pos = 0; C.phrase(S) end,

@@ -219,11 +219,15 @@ function C.bar(S)
   end
   S.halftime = S.half_bars > 0
 
-  S.track_bar = S.track_bar + 1
+  -- the solo track's clock waits while gradient leads
+  if not S.following then S.track_bar = S.track_bar + 1 end
   S.bar = S.bar + 1
 
   if S.mode_play == 2 and not S.following and S.track_bar >= (S.total_bars or math.huge) then
-    if S.end_action == 1 then return "stop" end
+    if S.end_action == 1 then
+      S.track_bar = 0
+      return "stop"
+    end
     S.track_bar = 0
     C.mutate(S, true)
     return "next"

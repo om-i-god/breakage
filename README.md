@@ -58,7 +58,7 @@ while gradient's CCs arrive, the screen shows `<> gradient`: breakage plays at g
 
 **root from notes on** (FOLLOW) tunes the toms and perc to the notes arriving on a channel, e.g. gradient's bass out on channel 1; otherwise **SOUND > toms + perc key** sets it.
 
-the kickless CC and the every-bar phrase pulse need gradient from `breakage-follow` onward.
+the kickless CC and the every-bar CCs need gradient with the `breakage-follow` changes.
 
 ---
 

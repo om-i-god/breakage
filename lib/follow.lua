@@ -22,13 +22,14 @@ local function clamp(v, lo, hi) return math.max(lo, math.min(hi, v)) end
 
 -- the step the main loop is on, so a pulse can be placed on the right bar:
 -- in the first half of a bar it marks this bar, in the second the next
-F.step_in_bar = function() return 0 end
+F.step_in_bar = function() return nil end
 
 local function on_pulse()
+  -- the last step played (nil before the first). S.bar was bumped when the
+  -- running bar began, so the running bar is S.bar - 1; a pulse late in a
+  -- bar, or before we've played, belongs to the next one
   local s = F.step_in_bar()
-  -- S.bar was bumped when the running bar began, so the running bar is
-  -- S.bar - 1; a pulse late in a bar belongs to the next one
-  local edge = s < 8 and S.bar - 1 or S.bar
+  local edge = (s and s < 8) and S.bar - 1 or S.bar
   -- learn gradient's phrase length from the spacing of its pulses
   if last_pulse_bar then
     local idx = ({[8] = 1, [16] = 2, [32] = 3, [64] = 4})[edge - last_pulse_bar]
@@ -38,7 +39,7 @@ local function on_pulse()
   local moved = (S.phrase_anchor or 0) % (S.phrase_len or 16) ~= edge % (S.phrase_len or 16)
   S.phrase_anchor = edge
   -- the pulse came in just after this bar started: run the phrase edge late
-  if moved and s < 8 and hooks.late_phrase then hooks.late_phrase() end
+  if moved and s and s < 8 and hooks.late_phrase then hooks.late_phrase() end
 end
 
 local function seen()

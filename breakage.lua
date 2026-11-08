@@ -5,6 +5,8 @@
 -- E1-E3: the current page
 --   play: energy / chaos / dub
 --   sound: kick tune / decay / snare
+--   voices: kick / snare / hat model
+--   groove: groove / perc / ticks
 --   space: swing / reverb / crush
 --   break: level / pitch / beats
 -- K2 tap: drop (kick + hats out)
@@ -12,14 +14,14 @@
 -- K2+K3: play / stop
 -- hold K2: E2 kit  E3 fills
 -- hold K3: E2 bpm  E3 play mode
--- hold K1: E1 theme  E2 page
+-- hold K1: E1 theme  E2 page  E3 view
 --   K3 mutate  K2 strip
 --
 -- PARAMS > FOLLOW: gradient's CC OUT
 -- on the same channel + ccs, and
 -- breakage follows its arc
 --
--- v0.1
+-- v0.2
 
 engine.name = "Breakage"
 
@@ -31,12 +33,31 @@ local VIS = include("lib/visuals")
 local GU  = include("lib/gridui")
 
 local NOTE_NAMES = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"}
+-- scales, in gradient's KEY > mode order so its mode cc means the same here
+local SCALES = {
+  {"aeolian", {0, 2, 3, 5, 7, 8, 10}}, {"dorian", {0, 2, 3, 5, 7, 9, 10}},
+  {"phrygian", {0, 1, 3, 5, 7, 8, 10}}, {"locrian", {0, 1, 3, 5, 6, 8, 10}},
+  {"mixolydian", {0, 2, 4, 5, 7, 9, 10}}, {"ionian", {0, 2, 4, 5, 7, 9, 11}},
+  {"lydian", {0, 2, 4, 6, 7, 9, 11}}, {"harmonic minor", {0, 2, 3, 5, 7, 8, 11}},
+  {"melodic minor", {0, 2, 3, 5, 7, 9, 11}}, {"phrygian dominant", {0, 1, 4, 5, 7, 8, 10}},
+  {"dorian #4", {0, 2, 3, 6, 7, 9, 10}}, {"hungarian minor", {0, 2, 3, 6, 7, 8, 11}},
+}
+local SCALE_NAMES = {}
+for i, sc in ipairs(SCALES) do SCALE_NAMES[i] = sc[1] end
 local ECHO_DIVS      = {0.5, 0.75, 1, 1.5}
 local ECHO_DIV_NAMES = {"1/8", "3/16", "1/4", "3/8"}
 local GLITCH_NAMES   = {"stutter", "tape stop", "reverse", "chop", "crush"}
 local BRK_BEATS      = {0, 2, 4, 8, 16, 32}       -- 0 = auto
-local PERC_BASE      = {50, 62, 0, 0, 36}          -- midi base per perc kind (3, 4 fixed pitch)
-local PERC_FIXED     = {[3] = 800, [4] = 2500}
+local PERC_BASE      = {50, 62, 0, 0, 36, 69, 57, 72, 0, 0}   -- midi base per perc kind (fixed: 3, 4, 9, 10)
+local PERC_FIXED     = {[3] = 800, [4] = 2500, [9] = 2800, [10] = 6000}
+local PERC_DECAY     = {0.18, 0.18, 0.18, 0.18, 0, 0.4, 0.25, 0.45, 0.13, 0.2}
+-- SOUND > ... model: "kit" or a voice model that replaces the kit's own
+local KICK_MODELS  = {"kit", "sub", "909", "808", "knock", "gabber", "rave", "acoustic", "metal", "minipops"}
+local SNARE_MODELS = {"kit", "909", "drill", "808", "noise", "acoustic", "jungle", "metal", "minipops"}
+local HAT_MODELS   = {"kit", "analog", "metallic", "crisp", "acoustic", "lofi", "minipops"}
+local PERC_MODELS  = {"kit", "conga", "bongo", "cowbell", "clave", "acid", "metal", "log", "plink",
+  "guiro", "tambourine"}
+local TICK_MODELS  = {"kit", "click", "blip", "crush", "ring", "chirp", "zap"}
 
 ------------------------------------------------------------------------
 -- state
@@ -118,21 +139,61 @@ end
 -- voices
 ------------------------------------------------------------------------
 
+-- the pitch centre for toms, perc and ticks: gradient's current chord
+-- root while following with "key + chords", else the key
+local function tone_pc()
+  if S.following and S.f_chord and params:get("follow_key") == 3 then return S.f_chord end
+  return S.root_pc
+end
+
+local function root_note(base)
+  return base + ((tone_pc() - base) % 12)
+end
+
+-- snap a midi note into the key's scale (nearest step, the lower on a tie)
+local function in_key(n)
+  local steps = SCALES[params:get("scale")][2]
+  local o = (n - S.root_pc) % 12
+  local best, bd = 0, 99
+  for _, st in ipairs(steps) do
+    for _, c in ipairs({st - 12, st, st + 12}) do
+      local d = math.abs(o - c)
+      if d < bd or (d == bd and c < best) then best, bd = c, d end
+    end
+  end
+  return n - o + best
+end
+
+-- kick / snare / rim: the kit's tuning moved (at most a tritone) to the
+-- nearest key note, when SOUND > tune drums to key is on
+local function to_key(note, off)
+  if params:get("tune_key") ~= 2 then return note end
+  local d = ((S.root_pc + (off or 0) - note) % 12 + 6) % 12 - 6
+  return note + d
+end
+
+-- the kit's voice model, unless SOUND picks another
+local function model(id, own)
+  local m = params:get(id)
+  return m > 1 and m - 1 or own
+end
+
 local function kick(vel, bend)
   local k = kit().kick
-  local tune = k[2] + params:get("kick_tune")
-  engine.kick(0.85 * vel, tune, k[3] * params:get("kick_decay") / 100, k[4], bend or 1, k[1])
+  local tune = to_key(k[2]) + params:get("kick_tune")
+  engine.kick(0.85 * vel, tune, k[3] * params:get("kick_decay") / 100, k[4], bend or 1, model("kick_model", k[1]))
   VIS.event("kick", vel)
 end
 
 local function snare(vel, up, rn, rim)
   local k = kit().snare
   if rim then
-    engine.rim(0.7 * vel, k[2] + 22 + params:get("snare_tune") + (up or 0), (math.random() - 0.5) * 0.4)
+    engine.rim(0.7 * vel, to_key(k[2] + 22, 7) + params:get("snare_tune") + (up or 0), (math.random() - 0.5) * 0.4)
     VIS.event("rim", vel)
   else
-    engine.snare(0.8 * vel, k[2] + params:get("snare_tune") + (up or 0), k[3], k[4],
-      (math.random() - 0.5) * 0.3, (S.chaos > 0.6 and chance(0.3)) and G.pick({-2, 3, 5}) or 0, k[1])
+    engine.snare(0.8 * vel, to_key(k[2], 7) + params:get("snare_tune") + (up or 0), k[3] * params:get("snare_decay") / 100, k[4],
+      (math.random() - 0.5) * 0.3, (S.chaos > 0.6 and chance(0.3)) and G.pick({-2, 3, 5}) or 0,
+      model("snare_model", k[1]))
     VIS.event("snare", vel, rn or 1)
   end
 end
@@ -145,30 +206,35 @@ end
 local function hat(vel, open)
   local k = kit().hat
   local tone = clamp(k[2] * params:get("hat_tone") / 100, 0, 1)
-  local decay = open and k[3] or (0.035 + vel * 0.04)
-  engine.hat(0.5 * vel, decay, tone, (math.random() - 0.5) * 0.6, k[1])
+  local decay = open and math.max(0.16, k[3] * params:get("hat_decay") / 100) or (0.035 + vel * 0.04)
+  engine.hat(0.5 * vel, decay, tone, (math.random() - 0.5) * 0.6, model("hat_model", k[1]))
   VIS.event("hat", vel, open)
 end
 
-local function root_note(base)
-  return base + ((S.root_pc - base) % 12)
-end
 
 local function tom(vel, deg, bend)
-  local hz = mtof(root_note(43) + (deg or 0))
+  local hz = mtof(in_key(root_note(43) + (deg or 0)))
   engine.tom(0.7 * vel, hz, 0.35, (math.random() - 0.5) * 0.8, bend or 0)
   VIS.event("tom", vel, hz)
 end
 
 local function perc(st, vel)
-  local hz = PERC_FIXED[st.kind] or mtof(root_note(PERC_BASE[st.kind]) + st.deg)
-  local decay = st.kind == 5 and (0.12 + S.energy * 0.2) or 0.18
-  engine.perc(0.6 * vel, hz, decay, (math.random() - 0.5) * 0.9, st.kind)
-  VIS.event("perc", st.kind, vel)
+  local kind = model("perc_model", st.kind)
+  local hz
+  if (kind == 3 or kind == 4) and params:get("tune_key") == 2 then
+    -- cowbell and clave land on a key note near their own pitch
+    hz = mtof(in_key(to_key(kind == 3 and 79 or 99)))
+  else
+    hz = PERC_FIXED[kind] or mtof(in_key(root_note(PERC_BASE[kind]) + st.deg))
+  end
+  local decay = kind == 5 and (0.12 + S.energy * 0.2) or PERC_DECAY[kind]
+  engine.perc(0.6 * vel, hz, decay * params:get("perc_decay") / 100, (math.random() - 0.5) * 0.9, kind)
+  VIS.event("perc", kind, vel)
 end
 
 local function tick(kind, vel)
-  engine.tick(0.45 * vel, kind, mtof(root_note(72) + G.pick({0, 7, 12, 19, 24})), (math.random() - 0.5) * 1.4)
+  kind = model("tick_model", kind)
+  engine.tick(0.45 * vel, kind, mtof(in_key(root_note(72) + G.pick({0, 7, 12, 19, 24}))), (math.random() - 0.5) * 1.4)
   VIS.event("tick", kind)
 end
 
@@ -254,6 +320,8 @@ local FILL_SUPPRESS = {
   gap = {kick = true, snare = true, clap = true, hats = true, ride = true, toms = true, brk = true, ticks = true},
   open = {hats = true},
   brkroll = {brk = true},
+  pops = {snare = true, clap = true, perc = true},
+  cascade = {perc = true, toms = true},
 }
 
 local function do_fill(s)
@@ -286,7 +354,7 @@ local function do_fill(s)
       tweak("echo_fb", 0.88)
       for _, k in ipairs({"snare", "rim", "clap"}) do tweak(k .. "_echo", 0.9) end
     end
-    if i == 15 then snare(0.9, 0, 1, kit().snare[1] ~= 2 and chance(0.6)) end
+    if i == 15 then snare(0.9, 0, 1, model("snare_model", kit().snare[1]) ~= 2 and chance(0.6)) end
   elseif f.kind == "dip" then
     if j == 0 then tweak("dip", 450) end
   elseif f.kind == "stutter" then
@@ -295,6 +363,20 @@ local function do_fill(s)
     if j == 0 then glitch(3, 1, len / 4) end
   elseif f.kind == "tapestop" then
     if j == 0 then glitch(2, 1, len / 4) end
+  elseif f.kind == "pops" then
+    -- a rhythm box's fill-in: a written run of hand percussion
+    local RUN = {{4, 0}, {9, 0}, {2, 7}, {2, 5}, {1, 0}, {1, 0}, {4, 0}, {9, 0}}
+    local st = RUN[(j % #RUN) + 1]
+    if j % 2 == 0 or c > 0.3 or i >= 15 then
+      perc({kind = st[1], deg = st[2]}, 0.6 + u * 0.4)
+    end
+    if i == 16 then snare(0.8, 0, 1, true) end
+  elseif f.kind == "cascade" then
+    -- down through the kit's percussion, a step each, pitched down the key
+    local pk = kit().perc
+    local degs = {12, 10, 7, 5, 3, 0, -2, -5}
+    perc({kind = pk[(j % #pk) + 1], deg = degs[(j % #degs) + 1]}, 0.55 + u * 0.4)
+    if c > 0.5 and j % 2 == 1 then tick(G.pick(kit().ticks), 0.6) end
   elseif f.kind == "brkroll" then
     local n = ({1, 2, 2, 4, 4, 6, 8, 8})[math.min(8, j + 1)]
     local sl = (S.tstep - j) % (S.brk_beats * 4)
@@ -657,6 +739,8 @@ local PART_LVL = {kick = "kick_lvl", snare = "snare_lvl", clap = "clap_lvl", hat
 local PAGES = {
   {name = "play",  {"_energy", 1}, {"chaos", 1},      {"dub", 1}},
   {name = "sound", {"kick_tune", 1}, {"kick_decay", 1}, {"snare_tune", 1}},
+  {name = "voices", {"kick_model", 1}, {"snare_model", 1}, {"hat_model", 1}},
+  {name = "groove", {"groove", 1}, {"perc_model", 1}, {"tick_model", 1}},
   {name = "space", {"swing", 1},   {"verb_send", 1},  {"crush_amt", 1}},
   {name = "break", {"break_lvl", 1}, {"brk_pitch", 1}, {"brk_beats", 1}},
   {name = "parts", {"_energy", 1}},
@@ -706,6 +790,9 @@ function enc(n, d)
     elseif n == 2 then
       page = clamp(page + d, 1, #PAGES)
       flash("page " .. PAGES[page].name)
+    elseif n == 3 then
+      params:set("vis_view", d > 0 and 2 or 1)
+      flash("view " .. params:string("vis_view"))
     end
   elseif k2 then
     k2_used = true
@@ -793,6 +880,7 @@ local function draw_hud()
     local st
     if S.following then st = "<> gradient"
     else st = S.section or "-" end
+    if S.following and params:get("follow_key") > 1 then st = st .. " " .. NOTE_NAMES[tone_pc() + 1] end
     st = st .. " " .. (S.phrase_pos + 1) .. "/" .. S.phrase_len
     if S.kickless and S.playing then st = st .. " ~" end
     if S.halftime then st = st .. " half" end
@@ -841,7 +929,7 @@ local function draw_hud()
   end
 
   local hint
-  if k1 then hint = "E1 theme E2 page K2 strip K3 mut"
+  if k1 then hint = "E1 theme E2 page E3 view"
   elseif k2 and not k3 then hint = "E2 kit  E3 fills"
   elseif k3 and not k2 then hint = "E2 bpm  E3 " .. params:string("play_mode") end
   if hint then
@@ -909,6 +997,13 @@ local function setup_params()
   params:add_option("kit_auto", "kit changes", {"by hand", "on phrases"}, 1)
   params:set_action("kit_auto", function(v) S.kit_auto = v end)
   params:add_option("kit_mix", "kit sets dub/swing/drive", {"off", "on"}, 2)
+  local gnames = {"kit"}
+  for i, f in ipairs(G.FAMILIES) do gnames[i + 1] = f end
+  params:add_option("groove", "groove", gnames, 1)
+  params:set_action("groove", function(v)
+    S.groove = v > 1 and G.FAMILIES[v - 1] or nil
+    if S.pat and S.pat.kick then C.mutate(S, true); C.decide(S) end
+  end)
   params:add_option("fills", "fills", {"normal", "busy", "off"}, 1)
   params:set_action("fills", function(v) S.fills = v end)
   params:add_option("kick_style", "kick", {"auto", "always", "never"}, 1)
@@ -949,6 +1044,10 @@ local function setup_params()
   params:add_number("follow_dub_cc", "dub cc", 0, 127, 21)
   params:add_number("follow_phrase_cc", "phrase pulse cc", 0, 127, 23)
   params:add_number("follow_kickless_cc", "kickless cc", 0, 127, 24)
+  params:add_option("follow_key", "follow its key", {"off", "key", "key + chords"}, 3)
+  params:add_number("follow_key_cc", "key root cc", 0, 127, 25)
+  params:add_number("follow_mode_cc", "mode cc", 0, 127, 26)
+  params:add_number("follow_chord_cc", "chord root cc", 0, 127, 27)
   params:add_option("follow_dub", "follow its dub", {"off", "on"}, 2)
   params:add_option("follow_transport", "follow start/stop", {"off", "on"}, 2)
   params:add_option("follow_note_ch", "root from notes on", {"off", "ch 1", "ch 2", "ch 3", "ch 4",
@@ -992,8 +1091,18 @@ local function setup_params()
   params:add_number("kick_decay", "kick decay %", 25, 250, 100)
   params:add_number("snare_tune", "snare tune", -12, 12, 0)
   params:add_number("hat_tone", "hat tone %", 40, 160, 100)
-  params:add_option("root", "toms + perc key", NOTE_NAMES, 10)
+  params:add_option("root", "key", NOTE_NAMES, 10)
   params:set_action("root", function(v) S.root_pc = v - 1 end)
+  params:add_option("scale", "scale", SCALE_NAMES, 1)
+  params:add_option("tune_key", "tune drums to key", {"off", "on"}, 2)
+  params:add_option("kick_model", "kick model", KICK_MODELS, 1)
+  params:add_option("snare_model", "snare model", SNARE_MODELS, 1)
+  params:add_option("hat_model", "hat model", HAT_MODELS, 1)
+  params:add_option("perc_model", "perc model", PERC_MODELS, 1)
+  params:add_option("tick_model", "glitch tick model", TICK_MODELS, 1)
+  params:add_number("snare_decay", "snare decay %", 25, 300, 100)
+  params:add_number("hat_decay", "open hat decay %", 25, 300, 100)
+  params:add_number("perc_decay", "perc decay %", 25, 300, 100)
 
   params:add_separator("VISUALS")
   params:add_option("theme_mode", "theme", {"follows the kit", "fixed"}, 1)
@@ -1003,6 +1112,8 @@ local function setup_params()
   params:add_option("hud", "overlay", {"full", "minimal", "off"}, 1)
   params:add_number("vis_speed", "speed", 1, 10, 3)
   params:add_number("vis_brightness", "brightness", 1, 15, 10)
+  params:add_option("vis_view", "view", {"one", "two"}, 1)
+  params:add_option("vis_shake", "kick shake", {"off", "soft", "hard"}, 1)
 end
 
 ------------------------------------------------------------------------
@@ -1015,6 +1126,7 @@ function init()
     if not S.playing or S.tstep == 0 then return nil end
     return (S.tstep - 1) % 16
   end
+  F.N_MODES = #SCALES
   F.init(S, {
     start = function() start(true) end,
     stop = function() stop() end,

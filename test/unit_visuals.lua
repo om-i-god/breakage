@@ -34,7 +34,8 @@ local function mkS()
   }
 end
 
-local NAMES = {"dub", "house", "acid", "analord", "syro", "broken", "drill", "gabber"}
+local NAMES = {"dub", "house", "acid", "analord", "syro", "broken", "drill", "gabber",
+  "ambient", "rave", "jungle", "industrial", "acoustic", "minipops"}
 
 -- one 16th of the groove. o: kick, snare, hats, perc, ticks, brk, ratchet
 -- (probability per step of a burst), glitch, energy
@@ -58,7 +59,7 @@ local function groove(S, VIS, k, o)
   end
   if o.ride and s % 4 == 1 then VIS.event("ride", 0.5) end
   if o.perc then
-    if s % 3 == 1 then VIS.event("perc", (s % 5) + 1, 0.7) end
+    if s % 3 == 1 then VIS.event("perc", (s % 10) + 1, 0.7) end
     if s == 11 then VIS.event("tom", 0.8, 110) end
     if s == 9 then VIS.event("shaker", 0.5) end
   end
@@ -160,6 +161,8 @@ end
 local function run(theme, scen, opts)
   opts = opts or {}
   env()
+  if opts.view then PV.vis_view = opts.view end
+  if opts.shake then PV.vis_shake = opts.shake end
   local VIS = include("lib/visuals")
   VIS.init()
   math.randomseed(opts.seed or 11)
@@ -263,6 +266,27 @@ for th, name in ipairs(NAMES) do
         assert(st.l15_max <= L15_MAX, st.l15_max .. " pixels at level 15")
       end)
     end
+
+    -- the second view: its own picture, inside the same budgets
+    test("visuals " .. name .. " view 2", function()
+      for _, sc in ipairs({"silence", "peak", "chaos", "kickless"}) do
+        local st = run(th, sc, {view = 2, shake = 3})
+        assert(st.bad == 0, sc .. ": " .. st.bad .. " NaN / inf")
+        assert(st.ops_max <= OPS_BUDGET, sc .. ": draw calls " .. st.ops_max)
+        assert(st.lit_max <= LIT_MAX, string.format("%s: lit %.3f", sc, st.lit_max))
+        assert(st.lit_min > (sc == "silence" and LIT_MIN_SILENT or LIT_MIN_LIVE),
+          string.format("%s: near blank %.4f", sc, st.lit_min))
+        assert(st.diff_max <= DIFF_MAX, string.format("%s: frame jump %.3f", sc, st.diff_max))
+        assert(st.l15_max <= L15_MAX, sc .. ": " .. st.l15_max .. " pixels at 15")
+      end
+      local a = run(th, "mid", {frames = 120, keep = true})
+      local b = run(th, "mid", {frames = 120, keep = true, view = 2})
+      local d = 0
+      for i = 21, 120 do d = d + bufdiff(a.frames[i], b.frames[i]) end
+      d = d / 100
+      if REPORT then print(string.format("view  %-9s differs %.3f", name, d)) end
+      assert(d > 0.05, string.format("view 2 looks like view 1: %.4f", d))
+    end)
 
     test("visuals " .. name .. " moves at silence", function()
       local st = run(th, "silence", {frames = 120, keep = true})

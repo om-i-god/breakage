@@ -40,13 +40,14 @@ function C.new_material(S, seed)
     S.seed = seed
     math.randomseed(seed)
   end
-  S.pat = G.build(C.kit(S), S.chaos)
+  S.pat = G.build(C.kit(S), S.chaos, S.groove)
 end
 
 -- on a phrase edge: keep the groove sometimes, swap pieces of it, or rebuild.
 -- the kick and snare move together (they are the groove)
 function C.mutate(S, full)
-  local N = G.build(C.kit(S), S.chaos, (not full and chance(0.6)) and S.pat.family or nil)
+  -- S.groove: a family forced from PARAMS > groove (nil: the kit chooses)
+  local N = G.build(C.kit(S), S.chaos, S.groove or ((not full and chance(0.6)) and S.pat.family or nil))
   if full or chance(0.3) then S.pat = N; return end
   local P = S.pat
   if chance(0.35) then P.kick, P.snare, P.rim, P.family = N.kick, N.snare, N.rim, N.family end
@@ -129,6 +130,9 @@ end
 --               open (open hats)   dip (filter dip)
 --   mid         roll (snare roll, rising)  stutter  brkroll (break slice roll)
 --   high        drill (two beats of accelerating ratchets)  reverse  tapestop
+--   any         pops (a rhythm box fill-in: clave, guiro, bongo, conga; the
+--               rhythm-box kits and preset grooves like it most)
+--               cascade (a run down through the kit's own percussion)
 ------------------------------------------------------------------------
 
 function C.pick_fill(S, big)
@@ -138,6 +142,9 @@ function C.pick_fill(S, big)
   if c > 0.5 then w.drill = (c - 0.4) * 6; w.reverse = c * 1.5; w.tapestop = c end
   if c > 0.6 then w.toms, w.open, w.dip = 1, 0.5, 0.5 end
   if S.brk_ready and c > 0.2 then w.brkroll = 1 + c * 2 end
+  local preset = ({bossa = 1, rhumba = 1, chacha = 1, samba = 1, beguine = 1, rock = 1})[S.pat and S.pat.family or ""]
+  w.pops = (preset and 4 or 0.4) * (1 - c * 0.6)
+  w.cascade = 0.8 + c * 0.8
   if (S.glitch_amt or 3) == 1 then w.stutter, w.reverse, w.tapestop = nil, nil, nil end
   local kind = G.wpick(w)
   local start = 13

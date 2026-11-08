@@ -28,6 +28,12 @@
 -- events reach only the theme on screen; the kit keeps the envelopes and
 -- the history for every theme.
 --
+-- perc kinds: 1 conga 2 bongo 3 cowbell 4 clave 5 acid 6 metal 7 log 8 plink
+-- 9 guiro 10 tambourine.
+-- K.view (1 or 2, the vis_view param) picks the theme's second view: every
+-- theme draws both. vis_shake (off / soft / hard) jolts the whole picture
+-- down a pixel or few on each kick, applied under the themes.
+--
 -- the glitch: VIS.event("glitch", mode, dur) tears the picture for as long
 -- as the engine's glitch insert runs, whatever the theme: a band of rows
 -- holds still on each stutter / chop slice while the rest moves on, slides
@@ -41,7 +47,8 @@
 local VIS = {}
 
 VIS.audio_level = 0
-VIS.names = {"dub", "house", "acid", "analord", "syro", "broken", "drill", "gabber"}
+VIS.names = {"dub", "house", "acid", "analord", "syro", "broken", "drill", "gabber",
+  "ambient", "rave", "jungle", "industrial", "acoustic", "minipops"}
 
 local FPS = 20
 local TAU = 2 * math.pi
@@ -105,6 +112,7 @@ local energy_seen = false
 local rat_n, rat_voice = 0, nil         -- the last ratchet burst
 local slice_i, slice_n, slice_rev = 0, 8, false
 local tick_odd = false
+local shake_dy = 0                      -- kick shake: whole-picture jolt, px
 
 local K = {A = A, AMP = AMP, LO = LO, MID = MID, HI = HI, TAU = TAU,
   env = env, last = last, hist = hist, HIST_N = HIST_N}
@@ -199,6 +207,7 @@ local function put(l, x, y, w, h)
   l = lvl(l)
   if not l then return end
   ops = ops + 1
+  y = y + shake_dy
   if held(y) then keep(l, 1, x, y, w, h); return end
   x, y, w = tear(x, y, w)
   local b, n = batch[l], bn[l]
@@ -214,6 +223,7 @@ local function line(l, x0, y0, x1, y1)
   l = lvl(l)
   if not l then return end
   ops = ops + 1
+  y0, y1 = y0 + shake_dy, y1 + shake_dy
   if held(y0) then keep(l, 2, x0, y0, x1, y1); return end
   if gl_t > 0 then
     local dx = 0
@@ -461,6 +471,10 @@ local function physics(S)
   local ATK = 0.06
   duck = duck_age < ATK and ease(duck_age / ATK) or math.exp(-(duck_age - ATK) / (rec * 0.45))
   for k, v in pairs(env) do env[k] = v * math.exp(-DT / ENV_TAU[k]) end
+  local sh = opt("vis_shake", 1)
+  -- the jolt steps a pixel a frame toward its depth, so it never jumps
+  local sh_to = sh > 1 and math.floor(env.kick * env.kick * (sh == 2 and 1.6 or 3.2) + 0.5) or 0
+  if sh_to > shake_dy then shake_dy = shake_dy + 1 elseif sh_to < shake_dy then shake_dy = shake_dy - 1 end
   bar_pulse = follow(bar_pulse, bar_kick, 0.05, DT)
   bar_kick = bar_kick * math.exp(-DT / 0.5)
   local dim_to = (gl_t > 0 and gl_mode == 2) and (0.6 + 0.4 * gl_t / math.max(gl_dur, 0.01)) or 1
@@ -506,6 +520,7 @@ local function sync(S)
   K.step = num(S.step, 0)
   K.stepf = stepf
   K.S = S
+  K.view = opt("vis_view", 1) == 2 and 2 or 1
 end
 
 K.clamp, K.num, K.ease, K.follow, K.rnd, K.hash, K.opt =
@@ -588,6 +603,7 @@ function VIS.init()
   stepf = 0
   rat_n, rat_voice = 0, nil
   slice_i, slice_n, slice_rev, tick_odd = 0, 8, false, false
+  shake_dy = 0
   T, NOW, last_clock = 0, 0, nil
   cur, xf = nil, 0
   rseed = 1
@@ -669,7 +685,7 @@ function VIS.event(kind, a, b, c)
     hit("tom", v)
     if i then deliver(i, "tom", v, v, hz) end
   elseif kind == "perc" then
-    local k = clamp(math.floor(num(a, 1)), 1, 5)
+    local k = clamp(math.floor(num(a, 1)), 1, 10)
     local v = vel(b)
     hit("perc", v)
     if k == 5 then hit("acid", v) end

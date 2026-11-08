@@ -5,7 +5,7 @@
 -- row 1   phrase position (8-bar blocks marked); a fill coming lights the end
 -- row 2   energy: lit to the level; press to pull it there
 -- row 3   chaos: lit to the level; press to set it
--- row 4   kits 1-8 (pending kit blinks)
+-- row 4   kits 1-13 (pending kit blinks)
 -- row 5   parts K S C H R P T G B: brightness = how loud; press = mute
 -- row 6   break pads: the 16 slices of the current bar of the loop; press to
 --         fire one (lit when a break is loaded)
@@ -20,6 +20,7 @@ GU.PARTS = {"kick", "snare", "clap", "hats", "ride", "perc", "toms", "ticks", "b
 
 local g, A
 local flash = {}
+local NK = #include("lib/kits").list
 
 function GU.init(actions)
   A = actions
@@ -39,7 +40,7 @@ function GU.key(x, y, z)
   elseif y == 3 then
     A.set_chaos((x - 1) / (w - 1))
   elseif y == 4 then
-    if x <= 8 then A.set_kit(x) end
+    if x <= NK then A.set_kit(x) end
   elseif y == 5 then
     local k = GU.PARTS[x]
     if k then A.toggle_mute(k) end
@@ -82,7 +83,7 @@ function GU.redraw()
 
   -- kits
   local blink = math.floor(now * 4) % 2 == 0
-  for x = 1, 8 do
+  for x = 1, NK do
     local lvl = 2
     if x == S.kit then lvl = 13 end
     if x == S.kit_pending then lvl = blink and 15 or 4 end

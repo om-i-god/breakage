@@ -32,7 +32,23 @@ engine = setmetatable({}, {__index = function(_, k)
     end
     if k == "tweak" and not TWEAKS[(...)] then error("engine.tweak: unknown key '" .. (...) .. "'", 2) end
     calls[k] = (calls[k] or 0) + 1
+    if pitch_log then
+      -- midi notes of the pitched voices: kick / snare / rim tune, tom / perc / tick hz
+      local note
+      if k == "kick" or k == "snare" or k == "rim" then note = select(2, ...)
+      elseif k == "tom" then note = 69 + 12 * math.log(select(2, ...) / 440, 2)
+      elseif k == "perc" and select(5, ...) < 9 and select(5, ...) ~= 5 then note = 69 + 12 * math.log(select(2, ...) / 440, 2)
+      elseif k == "tick" then note = 69 + 12 * math.log(select(3, ...) / 440, 2) end
+      if note then pitch_log[#pitch_log + 1] = {k, note} end
+    end
     if k == "tweak" then TWV[(...)] = select(2, ...) end
+    -- which voice models get played: kick / snare type, hat type, perc kind, tick kind
+    local TYPE_ARG = {kick = 6, snare = 7, hat = 5, perc = 5, tick = 2}
+    if TYPE_ARG[k] then
+      local ty = select(TYPE_ARG[k], ...)
+      assert(ty == math.floor(ty) and ty >= 1, "engine." .. k .. " type " .. ty)
+      types[k .. ty] = (types[k .. ty] or 0) + 1
+    end
     if k == "brk" then
       local amp, pos, len, rate = ...
       assert(pos >= 0 and pos <= 1, "brk pos out of range: " .. pos)
@@ -46,6 +62,7 @@ engine = setmetatable({}, {__index = function(_, k)
   end
 end})
 amp_check = true
+types = {}
 
 function include(p) return dofile(p .. ".lua") end
 
@@ -182,6 +199,64 @@ end
 print("kits x chaos ok; kick/snare/hat/tick/perc/tom calls:",
   calls.kick or 0, calls.snare or 0, calls.hat or 0, calls.tick or 0, calls.perc or 0, calls.tom or 0)
 assert((calls.kick or 0) > 50 and (calls.hat or 0) > 50 and (calls.snare or 0) + (calls.rim or 0) > 20)
+-- every kit's own voice models are heard (held high, so no kickless trough)
+params:set("play_mode", 3); S.hold_energy = 0.9; params:set("chaos", 20)
+for k, kt in ipairs(KT.list) do
+  B.set_kit(k); run_bars(1)
+  local k0, h0 = types["kick" .. kt.kick[1]] or 0, types["hat" .. kt.hat[1]] or 0
+  for _ = 1, 8 do
+    run_bars(2)
+    if (types["kick" .. kt.kick[1]] or 0) > k0 and (types["hat" .. kt.hat[1]] or 0) > h0 then break end
+  end
+  assert(types["kick" .. kt.kick[1]], kt.name .. ": kick model " .. kt.kick[1] .. " never played")
+  assert(types["hat" .. kt.hat[1]], kt.name .. ": hat model " .. kt.hat[1] .. " never played")
+  local any = false
+  for _, pk in ipairs(kt.perc) do any = any or types["perc" .. pk] ~= nil end
+  assert(any, kt.name .. ": none of its perc played")
+end
+for ty = 1, 8 do assert(types["snare" .. ty], "snare model " .. ty .. " never played") end
+
+-- SOUND > models override the kit's own, on every voice
+B.set_kit(10); params:set("chaos", 60)
+params:set("play_mode", 3); S.hold_energy = 0.9
+local OVR = {{"kick_model", "kick", 10}, {"snare_model", "snare", 9}, {"hat_model", "hat", 7},
+  {"perc_model", "perc", 11}, {"tick_model", "tick", 7}}
+for _, o in ipairs(OVR) do
+  local id, voice, n = o[1], o[2], o[3]
+  for m = 2, n do
+    params:set(id, m)
+    local before = types[voice .. (m - 1)] or 0
+    for _ = 1, 6 do
+      run_bars(2)
+      if (types[voice .. (m - 1)] or 0) > before then break end
+    end
+    assert((types[voice .. (m - 1)] or 0) > before, id .. " " .. m .. ": " .. voice .. " model " .. (m - 1) .. " never played")
+  end
+  params:set(id, 1)
+end
+for _, id in ipairs({"snare_decay", "hat_decay", "perc_decay"}) do
+  params:set(id, 300); run_bars(2); params:set(id, 25); run_bars(2); params:set(id, 100)
+end
+params:set("play_mode", 1)
+print("voice models ok")
+
+-- PARAMS > groove forces a family on any kit; back to kit lets the kit choose
+local G = include("lib/gen")
+for gi = 2, #G.FAMILIES + 1 do
+  params:set("groove", gi)
+  run_bars(2)
+  local want = G.FAMILIES[gi - 1]
+  assert(S.pat.family == want or S.pat.family == "brk", "groove " .. want .. " gave " .. tostring(S.pat.family))
+end
+params:set("groove", 1)
+assert(S.groove == nil, "groove kit left a forced family")
+-- the minipops presets play their percussion parts
+B.set_kit(14); params:set("chaos", 0); run_bars(2)
+local p0 = types.perc9 or 0
+for _ = 1, 12 do params:set("groove", 13); run_bars(2) end   -- chacha: guiro on the downbeats
+params:set("groove", 1)
+assert((types.perc9 or 0) > p0, "chacha never scraped the guiro")
+print("grooves ok")
 
 -- chaos really ratchets: more snare hits per bar at 100 than at 0
 local function rate(c, bars)
@@ -193,6 +268,7 @@ local function rate(c, bars)
   return ((calls.snare or 0) + (calls.rim or 0) + (calls.tick or 0) - s0) / bars
 end
 B.set_kit(7); run_bars(1)
+params:set("chaos", 0)
 local lo, hi = rate(0, 32), rate(100, 32)
 print(string.format("drill kit snare+tick per bar: chaos 0 %.1f, chaos 100 %.1f", lo, hi))
 assert(hi > lo * 1.5, "chaos didn't densify the drill kit")
@@ -280,6 +356,36 @@ assert(S.phrase_anchor == S.bar, "early pulse not placed on the coming bar")
 run_bars(1)
 assert(S.phrase_pos == 0, "phrase edge missed after an early pulse")
 run_bars(2)
+
+-- gradient's key: D dorian, on an A chord. drums snap into it
+cc(25, 2); cc(26, 2); cc(27, 9)
+assert(params:get("root") == 3 and params:get("scale") == 2, "key / mode ccs not taken")
+assert(S.f_chord == 9, "chord root cc not taken")
+params:set("play_mode", 3); S.hold_energy = 0.9; params:set("chaos", 50)
+B.set_kit(13); run_bars(1)                               -- acoustic: toms, log, plinks
+pitch_log = {}
+for _ = 1, 12 do cc(20, 115); cc(23, 0); run_bars(1) end
+local DOR = {[2] = true, [4] = true, [5] = true, [7] = true, [9] = true, [11] = true, [0] = true}
+local seen_k = {}
+for _, p in ipairs(pitch_log) do
+  local n = math.floor(p[2] + 0.5)
+  seen_k[p[1]] = true
+  -- snares and rims glide up in rolls and drills, on purpose: not checked
+  if p[1] ~= "snare" and p[1] ~= "rim" then
+    assert(math.abs(p[2] - n) < 0.01, p[1] .. " off the semitone grid: " .. p[2])
+    if p[1] == "kick" then assert(n % 12 == 2, "kick not on D: " .. n)
+    else assert(DOR[n % 12], p[1] .. " out of D dorian: " .. n) end
+  end
+end
+assert(seen_k.kick and (seen_k.tom or seen_k.perc), "no pitched hits logged")
+-- tune off: the kit's own tuning again
+params:set("tune_key", 1); pitch_log = {}; run_bars(2)
+for _, p in ipairs(pitch_log) do
+  if p[1] == "kick" then assert(p[2] == include("lib/kits").list[13].kick[2], "tune off still moved the kick") end
+end
+params:set("tune_key", 2); pitch_log = nil
+params:set("play_mode", 1)
+print("key follow ok")
 
 -- controls -----------------------------------------------------------------
 key(2, 1); key(2, 0); assert(S.drop_bars > 0, "drop")

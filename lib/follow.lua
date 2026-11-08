@@ -2,7 +2,9 @@
 -- listens to gradient over MIDI. gradient's CC OUT sends, once a bar on one
 -- channel: its energy, its dub amount, a phrase pulse (127 on the first bar
 -- of each phrase, 0 on the others: every bar, so it doubles as a heartbeat)
--- and, from gradient v0.2, a kickless flag (127 while its kick is out).
+-- and, from gradient v0.2, a kickless flag (127 while its kick is out), and
+-- its key: key root and chord root (0-11, C = 0) and mode (gradient's KEY >
+-- mode number, the same list as breakage's SOUND > scale).
 -- its SYNC OUT sends start / stop on its bar one.
 --
 -- following is automatic: any of these CCs arriving puts breakage in
@@ -17,6 +19,7 @@ local hooks = {}
 local last_pulse_bar
 
 local TIMEOUT = 4    -- bars without a CC before going solo
+F.N_MODES = 12       -- set by the main script to its scale count
 
 local function clamp(v, lo, hi) return math.max(lo, math.min(hi, v)) end
 
@@ -62,7 +65,9 @@ local function event(data)
   end
   if m.type == "note_on" and m.vel > 0 then
     local nch = params:get("follow_note_ch")
-    if nch > 1 and m.ch == nch - 1 then S.root_pc = m.note % 12 end
+    if nch > 1 and m.ch == nch - 1 and params:get("root") ~= m.note % 12 + 1 then
+      params:set("root", m.note % 12 + 1)
+    end
     return
   end
   if m.type ~= "cc" or m.ch ~= params:get("follow_ch") or params:get("follow") ~= 1 then return end
@@ -79,6 +84,19 @@ local function event(data)
   elseif m.cc == params:get("follow_kickless_cc") then
     S.f_kickless = m.val >= 64
     seen()
+  elseif m.cc == params:get("follow_key_cc") then
+    seen()
+    -- the key lands in breakage's own key param, so it stays put when
+    -- gradient goes quiet
+    local pc = m.val % 12
+    if params:get("follow_key") > 1 and params:get("root") ~= pc + 1 then params:set("root", pc + 1) end
+  elseif m.cc == params:get("follow_mode_cc") then
+    seen()
+    local md = math.max(1, math.min(F.N_MODES, m.val))
+    if params:get("follow_key") > 1 and params:get("scale") ~= md then params:set("scale", md) end
+  elseif m.cc == params:get("follow_chord_cc") then
+    seen()
+    S.f_chord = m.val % 12
   end
 end
 
@@ -87,6 +105,7 @@ function F.bar()
   if S.following and (params:get("follow") ~= 1 or S.bar - (S.f_last_bar or -99) > TIMEOUT) then
     S.following = false
     S.f_kickless = false
+    S.f_chord = nil
     if hooks.changed then hooks.changed(false) end
   end
 end

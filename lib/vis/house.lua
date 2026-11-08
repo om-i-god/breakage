@@ -1,225 +1,443 @@
--- house: a warehouse at night, looking down the floor toward the booth. the
--- floor is ruled in rows that run off to the back wall and roll slowly
--- toward you; every kick sends a band of light rolling up the floor from
--- the booth to your feet. the roof's rafters run back to the same point and
--- an open hat runs a light along them; the crowd stands in silhouette in
--- front of you, nodding on the beat, and a clap puts their hands up.
--- energy fills the floor and the crowd, chaos doubles and shakes the rows
--- and a ratchet rolls a quick train of bands
+-- house. view 1: a club at full tilt: a lighting rig sweeping beams through
+-- the haze over three rows of crowd that bob on the kick, a mirror ball, and
+-- blinders on the truss that fire on the claps.
+-- view 2: the drum machine's front panel up close: a 16-step pattern grid
+-- per voice with the running light, the step keys and the voice pads.
+--
+-- view 1: the kick lifts the beams and drops the crowd's heads; claps fire
+-- the blinders and put hands up; open hats and rides flare the beams; the
+-- cowbell and hats throw glints off the mirror ball; a fill swings every
+-- beam to the middle; a ratchet chases along the fixtures. energy brings up
+-- more beams, more crowd and thicker haze, chaos splits and crosses the
+-- beams and shakes the crowd, and kickless stretches tilt the beams up and
+-- slow them while the crowd sways.
+-- view 2: every hit lights its voice pad and its cell in the grid at the
+-- current step; the cells hold the last bars, so the grid shows the groove.
+-- the running light walks the step keys, a ratchet splits the current cell,
+-- chaos throws ghost lights and shifts the rows, energy lights the panel.
 return function(K)
   local M = {}
   local put, line, A, clamp = K.put, K.line, K.A, K.clamp
 
-  local VX, VY = 64, 21                -- where it all runs to: the booth
-  local NP = 9                        -- people in the crowd
-  local MAXP, MAXL = 8, 10
+  ---------------------------------------------------------------- view 1
+  local NF = 6
+  local FX = {12, 33, 54, 74, 95, 116}  -- fixtures on the truss
+  local FY = 9
+  local MAXG = 14
 
-  local pulses, lights, hands
-  local prof = {}
-
-  -- a row lit only where it is above the crowd
-  local function rowc(l, y, xa, xb)
-    xa, xb = xa or 0, xb or 128
-    if xa < 0 then xa = 0 end
-    if xb > 128 then xb = 128 end
-    local run
-    for x = xa, xb - 1 do
-      if y < prof[x] then run = run or x
-      elseif run then put(l, run, y, x - run, 1); run = nil end
+  -- the crowd: three rows, back to front (x, size, phase)
+  local ROWS = {
+    {y = 45, r = 2.2, n = 16, lv = 1, bob = 0.8},
+    {y = 52, r = 3.2, n = 12, lv = 0, bob = 1.6},
+    {y = 62, r = 5.4, n = 8, lv = 0, bob = 2.6},
+  }
+  local PPL = {}
+  for ri, R in ipairs(ROWS) do
+    PPL[ri] = {}
+    for i = 1, R.n do
+      local x = (i - 0.5) * 128 / R.n + (K.hash(i + ri * 31, 1) - 0.5) * 128 / R.n * 0.7
+      PPL[ri][i] = {x = x, r = R.r * (0.85 + 0.3 * K.hash(i + ri * 31, 2)),
+        ph = K.hash(i + ri * 31, 3) * 6.28, on = K.hash(i + ri * 31, 4), dy = (K.hash(i + ri * 31, 5) - 0.5) * 2}
     end
-    if run then put(l, run, y, xb - run, 1) end
   end
-  local booth, kickv
-  local adv, adv_to = 0, 0             -- the floor's roll: a row per kick
 
-  -- the crowd: a fixed line-up (x, head height, size)
-  local PEOPLE = {}
-  for i = 1, NP do
-    local x = 6 + (i - 1) * 14.5 + (K.hash(i, 1) - 0.5) * 6
-    PEOPLE[i] = {x = x, h = 49 + math.floor(K.hash(i, 2) * 5), r = 3.4 + K.hash(i, 3) * 1.2,
-      ph = K.hash(i, 4) * 6.28, on = K.hash(i, 5)}
-  end
+  local hands, glints
+  local blind, flare, conv, chase, chase_t
+  local bob                             -- the crowd's drop on the kick, eased
+  local bls, sph = 0, 0                         -- the blinders, eased (for the big areas)
+  local kup                             -- beams lift on the kick, eased
+  local prof = {}                       -- the crowd's top, per column
+  local fp = {}                         -- the front rows' top (what hides the back row)
+
+  -- view 2: the pattern memory, voices x 16 steps
+  local NV = 5                          -- kick, clap/snare, hat, open/ride, perc
+  local pat, pads, keyf, rat, rat_s
 
   function M.init()
-    pulses, lights, hands = {}, {}, {}
-    for i = 1, NP do hands[i] = 0 end
-    booth, kickv = 0, 0
-    adv, adv_to = 0, 0
+    hands = {}
+    for ri = 1, 3 do hands[ri] = {} for i = 1, ROWS[ri].n do hands[ri][i] = 0 end end
+    glints = {}
+    blind, flare, conv, chase, chase_t = 0, 0, 0, 0, 0
+    bob, kup, bls, sph = 0, 0, 0, 0
+    pat, pads = {}, {}
+    for v = 1, NV do pat[v] = {} pads[v] = 0 for s = 0, 15 do pat[v][s] = 0 end end
+    keyf = {}
+    for s = 0, 15 do keyf[s] = 0 end
+    rat, rat_s = 0, 0
   end
   M.clear = M.init
 
-  local function roll(v, delay)
-    if #pulses >= MAXP then table.remove(pulses, 1) end
-    pulses[#pulses + 1] = {t0 = K.T + (delay or 0), v = v}
+  local function cur_step() return math.floor(K.num(K.step, 0)) % 16 end
+
+  local function mark(v, vel)
+    local s = cur_step()
+    pat[v][s] = math.max(pat[v][s], 0.35 + 0.65 * vel)
+    pads[v] = math.max(pads[v], 0.4 + 0.6 * vel)
+    keyf[s] = math.max(keyf[s], 0.5 + 0.5 * vel)
+  end
+
+  local function glint(n, lv)
+    for _ = 1, n do
+      if #glints >= MAXG then table.remove(glints, 1) end
+      local a = K.rnd() * K.TAU
+      local d = 8 + K.rnd() * 50
+      glints[#glints + 1] = {x = 64 + math.cos(a) * d * 1.2, y = 15 + math.abs(math.sin(a)) * d * 0.5,
+        t0 = K.T, lv = lv}
+    end
   end
 
   function M.kick(v)
     v = K.num(v, 1)
-    roll(v)
-    booth, kickv = 1, v
-    adv_to = adv_to + 1
+    mark(1, v)
   end
-
-  function M.hat(v, open)
-    if not open then return end
-    if #lights >= MAXL then table.remove(lights, 1) end
-    lights[#lights + 1] = {t0 = K.T, side = K.rnd() < 0.5 and -1 or 1, k = math.floor(K.rnd() * 3), v = K.num(v, 1)}
-  end
-  function M.ride(v) M.hat(K.num(v, 1) * 0.6, true) end
 
   function M.clap(v)
-    -- a few hands go up, more with energy
-    local n = 2 + math.floor((K.energy + K.num(v, 1)) * 3)
+    v = K.num(v, 1)
+    mark(2, v)
+    blind = math.max(blind, 0.5 + 0.5 * v)
+    local n = 2 + math.floor((K.energy + v) * 2.5)
     for _ = 1, n do
-      local i = 1 + math.floor(K.rnd() * NP)
-      hands[i] = 1
+      local ri = 2 + math.floor(K.rnd() * 2)
+      local i = 1 + math.floor(K.rnd() * ROWS[ri].n)
+      hands[ri][i] = 1
     end
   end
-  function M.snare(v) if K.rnd() < 0.5 then M.clap(K.num(v, 1) * 0.5) end end
+  function M.snare(v)
+    v = K.num(v, 1)
+    mark(2, v * 0.8)
+    blind = math.max(blind, 0.3 * v)
+    if K.rnd() < 0.4 then
+      local i = 1 + math.floor(K.rnd() * ROWS[2].n)
+      hands[2][i] = math.max(hands[2][i], 0.7)
+    end
+  end
+  function M.rim(v) mark(2, K.num(v, 1) * 0.5) end
 
+  function M.hat(v, open)
+    v = K.num(v, 1)
+    if open then
+      mark(4, v)
+      flare = math.max(flare, 0.4 + 0.6 * v)
+      glint(2, 4 + 5 * v)
+    else
+      mark(3, v)
+      if K.rnd() < 0.5 then glint(1, 2 + 3 * v) end
+    end
+  end
+  function M.ride(v) v = K.num(v, 1); mark(4, v * 0.8); flare = math.max(flare, 0.3 * v); glint(1, 3 + 3 * v) end
+  function M.shaker(v) mark(3, K.num(v, 1) * 0.6) end
+
+  function M.perc(kind, v)
+    v = K.num(v, 1)
+    mark(5, v)
+    if kind == 3 then glint(4, 5 + 6 * v)      -- the cowbell: the ball lights up
+    else glint(1, 3 + 4 * v) end
+  end
+  function M.tom(v) mark(5, K.num(v, 1)) end
+  function M.tick() glint(1, 3) end
+  function M.brk(s) s = K.num(s, 1); if s % 2 == 1 then mark(5, 0.35) end; if s % 4 == 1 then glint(1, 4) end end
+
+  function M.fill() conv = 1 end
   function M.ratchet(n)
-    n = clamp(K.num(n, 2), 1, 12)
-    for k = 1, n do roll(0.6, k * K.beat_sec / n * 0.5) end
+    n = clamp(math.floor(K.num(n, 2)), 1, 12)
+    chase, chase_t = n, K.T
+    rat, rat_s = n, cur_step()
+    blind = math.max(blind, 0.45)
+    glint(math.min(n, 5), 6)
   end
 
-  -- depth z (1 near .. 24 far) -> floor row / ceiling row
-  local function fy(z) return VY + 40 / z end
-  local function cy(z) return VY - 22 / z end
-
-  function M.draw(S)
-    local T, DT, e, c = K.T, K.DT, K.energy, K.chaos
-    local lo, hi = A[K.LO], A[K.HI]
-    booth = booth * math.exp(-DT / 0.15)
-    adv = K.follow(adv, adv_to, 0.07, DT)
-    if adv_to > 1000 then adv_to, adv = adv_to - 1000, adv - 1000 end
-
-    -- the crowd's profile this frame, 1 px wide: heads nodding on the
-    -- beat over shoulders, arms up after a clap
-    local nod = K.playing and (0.5 + 0.5 * math.cos(K.beat_ph * K.TAU)) or 0
-    for x = 0, 127 do prof[x] = 64 end
-    local heads = {}
-    local nvis = math.floor(5 + e * 3 + 0.5)
-    for i, P in ipairs(PEOPLE) do
-      hands[i] = hands[i] * math.exp(-DT / 0.35)
-      if P.on * NP < nvis or hands[i] > 0.1 then
-        local x = P.x + math.sin(T * 0.4 + P.ph) * 1.5
-        local hy = P.h + nod * (0.8 + e * 1.4) * (0.6 + 0.4 * math.sin(P.ph))
-        local r = P.r
-        local sw = r + 6
-        for xx = math.floor(x - sw), math.floor(x + sw) do
-          if xx >= 0 and xx <= 127 then
-            local dx = math.abs(xx + 0.5 - x)
-            local top = 64
-            if dx <= r then top = hy - math.sqrt(r * r - dx * dx) end
-            local sh = hy + r + 2 + math.max(0, dx - r - 1) ^ 1.6 * 0.25
-            if dx > r - 0.5 then top = math.min(top, math.max(hy + r * 0.7, sh)) end
-            if top < prof[xx] then prof[xx] = top end
-          end
-        end
-        heads[#heads + 1] = x; heads[#heads + 1] = hy; heads[#heads + 1] = r
-        if hands[i] > 0.15 then
-          local up = hands[i] ^ 0.5 * (9 + e * 4)
-          for _, side in ipairs({-1, 1}) do
-            local ax = math.floor(x + side * (r + 3.5))
-            local ty = hy + r + 1 - up
-            for xx = ax, ax + 1 do
-              if xx >= 0 and xx <= 127 then prof[xx] = math.min(prof[xx], ty) end
+  -- the crowd's top this frame (and where heads are), 1 px columns
+  local heads = {}
+  local function crowd(e, c, kl)
+    for x = 0, 127 do prof[x], fp[x] = 64, 64 end
+    local nh = 0
+    for ri = 3, 1, -1 do
+      local R = ROWS[ri]
+      for i, P in ipairs(PPL[ri]) do
+        local h = hands[ri][i]
+        hands[ri][i] = h * math.exp(-K.DT / 0.4)
+        local show = P.on < 0.6 + e * 0.4 or ri == 3
+        if show then
+          local sway = math.sin(K.T * (0.5 + kl * 0.7) + P.ph) * (0.8 + kl * 1.6)
+          if c > 0.4 then sway = sway + math.sin(K.T * 5.3 + P.ph * 3) * c * 1.5 end
+          local x = P.x + sway
+          local r = P.r
+          local hy = R.y + P.dy + bob * R.bob * (0.7 + 0.3 * math.sin(P.ph)) - r
+          for xx = math.floor(x - r * 2.6), math.floor(x + r * 2.6) do
+            if xx >= 0 and xx <= 127 then
+              local dx = math.abs(xx + 0.5 - x)
+              local top
+              local sh = hy + r * 1.5 + math.max(0, dx - r * 1.3) * 0.45
+              if dx > r * 0.6 then top = sh else top = 64 end
+              if dx <= r then top = math.min(top, hy - math.sqrt(r * r - dx * dx)) end
+              if top < prof[xx] then prof[xx] = top end
+              if ri > 1 and top < fp[xx] then fp[xx] = top end
             end
           end
+          if h > 0.15 and ri > 1 then
+            local up = h ^ 0.5 * (r * 2.6 + e * 3)
+            for _, side in ipairs({-1, 1}) do
+              local ax = math.floor(x + side * r * 1.5)
+              local ty = hy + r * 0.3 - up
+              for xx = ax, ax + (ri == 3 and 1 or 0) do
+                if xx >= 0 and xx <= 127 then
+                  prof[xx] = math.min(prof[xx], ty)
+                  fp[xx] = math.min(fp[xx], ty)
+                end
+              end
+            end
+          end
+          if nh < 60 then heads[nh + 1], heads[nh + 2], heads[nh + 3] = ri, x, hy; nh = nh + 3 end
         end
       end
     end
+    return nh
+  end
 
-    -- the back wall and the booth light at the end of the room
-    put(1 + booth * 4 + lo * 2, VX - 10, VY - 4, 20, 1)
-    put(1, VX - 10, VY + 1, 20, 1)
-    put(2 + booth * 9 + e * 2, VX - 2, VY - 2, 4, 2)
-    put(1 + booth * 3, VX - 5, VY - 2, 2, 1); put(1 + booth * 3, VX + 3, VY - 2, 2, 1)
+  local function crowd_top(x)
+    x = math.floor(clamp(x, 0, 127))
+    return prof[x]
+  end
 
-    -- the roof: rafters running back, trusses across, scrolling toward us
-    local sc = (T * 0.08) % 1
-    for k = 0, 5 do
-      local z = 1.4 + (k + 1 - sc) * 3.4
-      local y = math.floor(cy(z) + 0.5)
-      local hw = 128 / z * 1.4
-      if y >= 0 then line(1 + 1.4 / z * 3 + hi * 1.5, VX - hw, y, VX + hw, y) end
+  -- a beam from a fixture to the crowd: a fan of lines, its ends clipped
+  local function beam(l, fx, ex, spread)
+    local ey = math.max(FY + 6, crowd_top(ex) - 1)
+    line(l, fx, FY + 2, ex, ey)
+    if spread > 0.5 and l > 1.4 then
+      for k = 1, 2 do
+        local d = spread * k / 2
+        local ll = l * (k == 1 and 0.6 or 0.35)
+        for sd = -1, 1, 2 do
+          local ex2 = ex + sd * d
+          line(ll, fx + sd * 0.5, FY + 2, ex2, math.max(FY + 6, crowd_top(ex2) - 1))
+        end
+      end
     end
-    for k = -3, 3 do
-      local x = VX + k * 30
-      line(0.8 + hi * 1.5, VX + k * 2, VY - 2, x, 0)
+    return ey
+  end
+
+  local function draw1(S)
+    local T, DT, e, c = K.T, K.DT, K.energy, K.chaos
+    local lo, hi, kl = A[K.LO], A[K.HI], K.kickless
+    local playing = K.playing and 1 or 0
+    local nh = crowd(e, c, kl)
+
+    -- the back wall: an LED strip and the booth, dim behind the haze
+    local bp = K.bar_ph
+    for k = 0, 15 do
+      local on = (math.floor(K.stepf) % 16 == k) and playing or 0
+      put(1 + on * (2 + e * 2) + lo * 0.6, 8 + k * 7, 33, 5, 1)
     end
-    -- open hats: lights running out along a rafter toward us
-    for i = #lights, 1, -1 do
-      local L = lights[i]
-      local u = (K.T - L.t0) / 0.7
-      if u >= 1 then table.remove(lights, i)
+    line(1.5, 40, 38, 88, 38)
+    put(1, 42, 39, 44, 2)
+    put(2 + lo * 4 + K.env.kick * 3, 50, 37, 3, 1)
+    put(2 + hi * 4 + K.env.hat * 3, 75, 37, 3, 1)
+    -- the haze
+    K.haze(0, 12, 128, 42, 0.18 + 0.22 * e + 0.15 * kl + 0.15 * hi, 1, T * 4)
+
+    -- the rig: the truss, the fixtures and the blinders
+    line(2, 0, 3, 127, 3)
+    line(2, 0, 7, 127, 7)
+    for x = 0, 120, 8 do line(1.2, x, 3, x + 4, 7); line(1.2, x + 4, 7, x + 8, 3) end
+    for k = 0, 3 do
+      local bx = 20 + k * 28
+      put(math.min(12, 2 + blind * 10), bx, 4, 5, 2)
+    end
+
+    -- beams: they sweep in mirrored pairs on the bar, lift on the kick,
+    -- flare on open hats, swing to the middle on a fill
+    local nb = math.floor(2 + e * 4 + 0.5)
+    local sw = (0.6 + 0.4 * playing) * (1 - kl * 0.5)
+    -- the sweep: slow at rest, half a swing a bar when playing
+    sph = (sph + K.DTS * (0.35 * sw + playing * (1 - kl * 0.6) * math.pi / (4 * K.beat_sec))) % 1000
+    for i = 1, NF do
+      local fx = FX[i]
+      local mir = (i <= 3) and 1 or -1
+      local on = (i == 3 or i == 4) or ((i - 1) % 5 < nb - 1) or i <= nb
+      local ph = sph + i * 0.9
+      local tgt = fx + mir * math.sin(ph) * (30 + e * 14)
+      tgt = tgt + (64 - tgt) * conv
+      local ex = tgt
+      local lift = (kl * 0.6 + (1 - kup) * 0.15) -- kickless: beams tilt up
+      local lv = (1.6 + e * 0.8 + kup * 2.6 + flare * 2 + bls * 2) * (on and 1 or 0.45) * (1 - kl * 0.35)
+      if chase > 0 then
+        local cu = (K.T - chase_t) / 0.4
+        if cu < 1 and math.floor(cu * chase) % NF == i - 1 then lv = lv + 6 end
+      end
+      lv = math.min(10, lv)
+      if lift > 0.3 then
+        -- tilted up: the beam ends in the haze
+        local ey = FY + 20 - lift * 10
+        line(lv, fx, FY + 2, ex, ey)
       else
-        local k = L.side * (1 + L.k)
-        local x0, x1 = VX + k * 2, VX + k * 30
-        local f = u * u
-        local px, py = x0 + (x1 - x0) * f, (VY - 2) * (1 - f)
-        local f2 = math.max(0, u - 0.15) ^ 2
-        local qx, qy = x0 + (x1 - x0) * f2, (VY - 2) * (1 - f2)
-        line((3 + 7 * L.v) * (1 - u), qx, qy, px, py)
+        local ey = beam(lv, fx, ex, 4 + e * 4 + flare * 3)
+        if lv > 3 then put(lv * 0.7, ex - 1, ey - 1, 3, 1) end   -- the spot on the crowd
+      end
+      if c > 0.3 then
+        local ex2 = fx - mir * math.sin(ph * 1.7 + 1) * (24 + c * 20)
+        beam(lv * 0.6 * c, fx, ex2, 0)
+      end
+      -- the fixture
+      put(2.5 + kup * 2, fx - 2, FY - 1, 5, 2)
+      put(math.min(12, 3 + lv * 0.9), fx - 1, FY + 1, 3, 1)
+    end
+
+    -- the mirror ball and its glints
+    local bx, by = 64, 15
+    line(1.5, bx, 7, bx, by - 3)
+    K.disc(2 + hi * 2, bx, by, 3)
+    put(4 + hi * 6 + K.env.ohat * 4, bx - 1 + math.floor(T * 3) % 3, by - 1, 1, 1)
+    for i = #glints, 1, -1 do
+      local G = glints[i]
+      local u = (K.T - G.t0) / 0.8
+      if u >= 1 then table.remove(glints, i)
+      else
+        local gx = G.x + u * 6
+        if G.y < crowd_top(gx) - 1 then put(G.lv * (1 - u), gx, G.y, 2, 1) end
       end
     end
 
-    -- the floor: rows rolling slowly toward us; chaos doubles and shakes them
-    local rows = math.floor(4 + e * 4)
-    local fs = (T * 0.06 + adv) % 1
-    for k = 0, rows do
-      local z = 1 + (k + 1 - fs) * (9 / rows)
-      local y = fy(z)
-      local jy = 0
-      if c > 0.3 then jy = (K.hash(k + math.floor(T * 8) * 7, 9) - 0.5) * c * 4 end
-      local yy = math.floor(y + jy + 0.5)
-      if yy < 64 and yy > VY then
-        local hw = (yy - VY) * 2.6
-        rowc(1 + 0.8 / z + lo * 1.5 / z, yy, math.floor(VX - hw), math.ceil(VX + hw))
-        if c > 0.55 and k % 4 == 1 then
-          local x0 = math.floor(K.hash(k, math.floor(T * 6)) * 80)
-          rowc(1, yy + 2, x0, x0 + 32)
+    -- the crowd: the back row hazy, the front rows black with their edges
+    -- caught by the light; heads drop on the kick
+    local rl = 4 + kup * 3 + bls * 3 + lo * 0.5
+    -- (runs of equal columns go out as one rect)
+    local r1x, r1a, r1b, r2x, r2a, r2b, r3x, r3a, r3b
+    for x = 0, 128 do
+      local fa, fb, ta, oa, ob = -1, -1, -1, -1, -1
+      if x < 128 then
+        local top = math.floor(prof[x] + 0.5)
+        local ft = math.floor(fp[x] + 0.5)
+        if top < ft then
+          local bot = math.min(ft, top + 7)
+          if bot > top + 1 then fa, fb = top + 1, bot end
+          ta = top
+        end
+        if ft < 64 then
+          -- the outline, joined down to the neighbours so it never breaks
+          local nb = math.max(fp[math.max(0, x - 1)], fp[math.min(127, x + 1)])
+          oa, ob = ft, ft + math.max(1, math.min(4, math.floor(nb + 0.5) - ft))
+        end
+      end
+      if r1x and (fa ~= r1a or fb ~= r1b) then put(1, r1x, r1a, x - r1x, r1b - r1a); r1x = nil end
+      if not r1x and fa >= 0 then r1x, r1a, r1b = x, fa, fb end
+      if r2x and ta ~= r2a then put(rl * 0.6, r2x, r2a, x - r2x, 1); r2x = nil end
+      if not r2x and ta >= 0 then r2x, r2a = x, ta end
+      if r3x and (oa ~= r3a or ob ~= r3b) then put(rl, r3x, r3a, x - r3x, r3b - r3a); r3x = nil end
+      if not r3x and oa >= 0 then r3x, r3a, r3b = x, oa, ob end
+    end
+    K.grain(function(u, v) return u * 128, 12 + v * 26 end, 2 + hi * 10 + e * 4, 2 + hi * 3)
+  end
+
+  ---------------------------------------------------------------- view 2
+  local GX, GY0, CW, RH = 14, 17, 7, 5    -- the grid: x0, y0, column pitch, row pitch
+
+  local function draw2(S)
+    local T, DT, e, c = K.T, K.DT, K.energy, K.chaos
+    local lo, hi, kl = A[K.LO], A[K.HI], K.kickless
+    local playing = K.playing
+    local cs = cur_step()
+    local sf = K.num(K.stepf, 0)
+    local idle = not playing
+    if idle then sf = T * 1.5; cs = math.floor(sf) % 16 end
+
+    -- the panel: a frame, a backlight that comes up with the energy
+    line(1, 1, 1, 126, 1)
+    line(1, 1, 62, 126, 62)
+    line(1.5, 1, 1, 1, 62)
+    line(1.5, 126, 1, 126, 62)
+    line(1, 3, 14, 124, 14)
+    line(1, 3, 43, 124, 43)
+
+    -- the knobs: one per voice, the pointer kicked by its hits; tempo lamp
+    local kn = {pads[1], pads[2], pads[3], pads[4], pads[5], hi, lo, e}
+    for k = 1, 8 do
+      local kx, ky = 10 + (k - 1) * 13, 8
+      K.ring(1.2 + e * 0.5, kx, ky, 3.5, 10)
+      local a = math.pi * 0.75 + (0.3 + 0.6 * kn[k] + 0.08 * math.sin(T * 0.3 + k)) * math.pi * 1.5
+      line(2.5 + kn[k] * 5, kx, ky, kx + math.cos(a) * 3.5, ky + math.sin(a) * 3.5)
+    end
+    local beat_on = playing and (K.beat_ph < 0.15) and 1 or 0
+    put(2 + beat_on * 9 + (idle and (1.5 + 1.5 * math.sin(T * 2)) or 0), 114, 6, 4, 2)
+    put(1.5 + kl * 8, 114, 10, 4, 1)                 -- the kick-mute lamp
+
+    -- voice pads at the row heads, and the grid
+    local dec = math.exp(-DT / math.max(0.5, K.beat_sec * 6))
+    for v = 1, NV do
+      pads[v] = pads[v] * math.exp(-DT / 0.12)
+      local y = GY0 + (v - 1) * RH
+      local muted = (v == 1 and kl > 0.5)
+      put(muted and 1 or (2 + pads[v] * 9), 4, y, 6, 2)
+      local shift = 0
+      if c > 0.35 then shift = math.floor(math.sin(T * 1.3 + v * 2.1) * c * 2.5 + 0.5) end
+      for s = 0, 15 do
+        local val = pat[v][s] * dec
+        pat[v][s] = val
+        local x = GX + ((s + shift) % 16) * CW
+        local l
+        if val > 0.05 then
+          l = 1.5 + val * 4.5
+          if s == cs then l = l + 3 end
+          put(math.min(11, l), x, y, 4, 2)
+        else
+          l = ((s % 4 == 0) and 1.5 or 1) + (s == cs and 2 or 0)
+          put(l, x + 1, y, 2, 1)
+        end
+        if c > 0.6 and val > 0.3 and (s + v) % 3 == 0 then
+          put(val * 4 * c, GX + ((s + shift + 8) % 16) * CW + 1, y + 1, 3, 1)
         end
       end
     end
-    -- the floor's boards running back
-    for k = -5, 5 do
-      local x1 = VX + k * 22
-      local yb = 44
-      local xb = VX + (x1 - VX) * (yb - VY) / (63 - VY)
-      line(1 + lo * 1.5, VX + k * 1.5, VY + 2, xb, yb)
-    end
-    -- the kick's bands rolling up the floor to us
-    for i = #pulses, 1, -1 do
-      local P = pulses[i]
-      local u = (K.T - P.t0) / math.max(0.25, K.beat_sec * 0.9)
-      if u >= 1 then table.remove(pulses, i)
-      elseif u >= 0 then
-        local z = 16 / (1 + u * 15)
-        local y = math.floor(fy(z) + 0.5)
-        local lv = P.v * (3 + 7 * u) * (1 - u ^ 3) * (0.6 + 0.4 * e) + lo
-        if y < 64 then
-          local hw = (y - VY) * 2.6
-          rowc(lv, y, math.floor(VX - hw), math.ceil(VX + hw))
-          if u > 0.4 and y + 1 < 64 then rowc(lv * 0.4, y + 1, math.floor(VX - hw), math.ceil(VX + hw)) end
+    -- the playhead: brackets over the current column; a ratchet splits it
+    local hx = GX + (sf % 16) * CW
+    line(4 + e * 3, hx - 1, GY0 - 2, hx + 5, GY0 - 2)
+    line(4 + e * 3, hx - 1, GY0 + NV * RH, hx + 5, GY0 + NV * RH)
+    if rat > 0 then
+      local age = K.since("ratchet")
+      if age < 0.5 then
+        local x = GX + rat_s * CW
+        for k = 0, math.min(rat, 5) - 1 do
+          put(11 * (1 - age * 2), x + k, GY0 - 4, 1, 2)
         end
+        put(8 * (1 - age * 2), x, GY0 + NV * RH + 2, 5, 1)
       end
     end
 
-    -- the crowd: dark figures against the floor, hatched faintly, their
-    -- outlines caught in the light from the booth
-    for x = 0, 127 do
-      local top = math.floor(prof[x] + 0.5)
-      if top < 64 then
-        if x % 3 == 0 then put(1, x, top + 2, 1, 64 - top - 2) end
-        local up = top < 50 and 1.5 or 0
-        put(1.5 + booth * 2.5 + lo * 1.5 + up, x, top, 1, 1)
+    -- the step keys: 4 groups, an LED over each, the running light
+    for s = 0, 15 do
+      keyf[s] = keyf[s] * math.exp(-DT / 0.15)
+      local x = GX + s * CW
+      local grp = (s // 4) % 2
+      local any = 0
+      for v = 1, NV do any = math.max(any, pat[v][s]) end
+      local ledv = any > 0.1 and (1.5 + any * 4) or 1
+      local d = math.abs(((sf % 16) - s + 8) % 16 - 8)
+      if d < 1 then ledv = ledv + (1 - d) * (playing and 9 or 4) end
+      if c > 0.5 and K.hash(s + math.floor(T * 4) * 16, 9) < c * 0.15 then ledv = ledv + 5 end
+      put(math.min(13, ledv), x + 1, 46, 3, 1)
+      put(1 + keyf[s] * 6 + e * 0.4, x, 50, 5, 6)
+      put(1.5 + grp + keyf[s] * 4, x, 49, 5, 1)
+    end
+    -- a fill: the LEDs ripple out from the playhead
+    local fe = K.env.fill
+    if fe > 0.1 then
+      local r = (1 - fe) * 16
+      for side = -1, 1, 2 do
+        local s = (math.floor(sf + side * r)) % 16
+        put(fe * 9, GX + s * CW + 1, 46, 3, 1)
       end
     end
-    for k = 1, #heads, 3 do
-      K.ring(1.5 + booth * 3 + lo * 1.5, heads[k], heads[k + 1], heads[k + 2], 10)
-    end
-    K.haze(0, VY - 4, 128, VY + 8, 0.2 + 0.25 * e, 1, T * 5)
+    K.grain(function(u, w) return 4 + u * 120, 15 + w * 27 end, 1 + hi * 6, 2 + hi * 2)
+  end
+
+  function M.draw(S)
+    local DT = K.DT
+    blind = blind * math.exp(-DT / 0.18)
+    bls = K.follow(bls, blind, 0.06, DT)
+    flare = flare * math.exp(-DT / 0.3)
+    conv = conv * math.exp(-DT / 0.9)
+    bob = K.follow(bob, K.duck * (1 - K.kickless), 0.05, DT)
+    kup = K.follow(kup, math.max(K.env.kick, A[K.LO] * 0.5), 0.05, DT)
+    if K.view == 2 then draw2(S) else draw1(S) end
   end
 
   M.init()

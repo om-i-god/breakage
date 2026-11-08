@@ -12,10 +12,24 @@
 --   electro  syncopated kick, snare on 2 and 4, 8th hats
 --   broken   2-step / broken beat, ghost snares, swung hats
 --   brk      a breakbeat skeleton (kick 1, 3, 11, 12; snare 5, 8, 10, 13)
+--   jungle   a rolling chopped break: sparse kick, snare 5 + 13 with ghosts
+--            on 8, 10 and 15, running 16ths                     jungle
+--   half     halftime: kick on 1 (and a push), snare on 9, slow hats
+--                                                ambient / industrial
+--   rave     hardcore: four on the floor under a breakbeat snare + 16ths
+--
+-- the rhythm-box presets (minipops) also write their percussion part:
+--   bossa    bossa nova: clave 3-2 on the rim, congas, soft kick
+--   rhumba   son clave, conga tumbao, maracas
+--   chacha   guiro on the downbeats, cowbell, the cha-cha-cha on the rim
+--   samba    surdo kick on every beat, tambourine 16ths, rim ghosts
+--   beguine  a lilting kick, bongos, rim on the "and"s
+--   rock     a slow-rock preset: kick 1, 9 and 11, snare 2 and 4
 
 local G = {}
 
-G.FAMILIES = {"four", "dub", "acid", "electro", "broken", "brk"}
+G.FAMILIES = {"four", "dub", "acid", "electro", "broken", "brk", "jungle", "half", "rave",
+  "bossa", "rhumba", "chacha", "samba", "beguine", "rock"}
 
 local function clamp(v, lo, hi) return math.max(lo, math.min(hi, v)) end
 local function chance(p) return math.random() < p end
@@ -113,6 +127,92 @@ SKEL.brk = function(c)
   return k, s, h
 end
 
+SKEL.jungle = function(c)
+  local k = set(zeros(), G.pick({{1, 11}, {1, 7, 11}, {1, 3, 11}, {1, 11, 12}}), 1)
+  local s = set(zeros(), {5, 13}, 1)
+  set(s, {8, 10}, 0.45)
+  set(s, {G.pick({15, 16, 4})}, 0.4)
+  local h = zeros()
+  for i = 1, 16 do h[i] = (i % 2 == 1) and 0.65 or 0.3 end
+  return k, s, h
+end
+
+SKEL.half = function(c)
+  local k = set(zeros(), G.pick({{1}, {1, 4}, {1, 11}, {1, 8}, {1, 15}}), 1)
+  local s = set(zeros(), {9}, 1)
+  local h = set(zeros(), {1, 5, 9, 13}, 0.55)
+  for _, i in ipairs({3, 7, 11, 15}) do h[i] = 0.3 end
+  return k, s, h
+end
+
+SKEL.rave = function(c)
+  local k = set(zeros(), {1, 5, 9, 13}, 1)
+  local s = set(zeros(), {5, 13}, 1)
+  set(s, {G.pick({8, 10, 16}), G.pick({11, 15})}, 0.45)
+  local h = zeros()
+  for i = 1, 16 do h[i] = (i % 4 == 3) and 0.9 or (i % 2 == 0 and 0.4 or 0.25) end
+  return k, s, h
+end
+
+-- the presets' percussion: {step = {role, vel}}; roles map to perc kinds
+local ROLE = {conga = 1, bongo = 2, cowbell = 3, clave = 4, guiro = 9, tamb = 10}
+local function lane(t)
+  local p = {}
+  for role, steps in pairs(t) do
+    for _, st in ipairs(steps) do p[st[1]] = {role, st[2]} end
+  end
+  return p
+end
+
+SKEL.bossa = function(c)
+  local k = set(zeros(), G.pick({{1, 7, 9, 15}, {1, 4, 9, 12}}), 0.9)
+  local s = set(zeros(), {1, 4, 7, 11, 14}, 0.55)
+  local h = set(zeros(), {1, 3, 5, 7, 9, 11, 13, 15}, 0.45)
+  return k, s, h, lane({conga = {{3, 0.6}, {8, 0.8}, {12, 0.5}, {16, 0.8}}})
+end
+
+SKEL.rhumba = function(c)
+  local k = set(zeros(), {1, 7, 9}, 0.9)
+  local s = set(zeros(), {13}, 0.5)
+  local h = zeros()
+  for i = 1, 16 do h[i] = (i % 2 == 1) and 0.5 or 0.25 end
+  return k, s, h, lane({clave = {{1, 0.9}, {4, 0.8}, {7, 0.9}, {11, 0.8}, {13, 0.9}},
+    conga = {{6, 0.6}, {8, 0.8}, {14, 0.6}, {16, 0.8}}})
+end
+
+SKEL.chacha = function(c)
+  local k = set(zeros(), {1, 9}, 1)
+  local s = set(zeros(), {13, 15, 16}, 0.6)
+  local h = set(zeros(), {3, 7, 11, 15}, 0.5)
+  return k, s, h, lane({guiro = {{1, 0.9}, {9, 0.8}}, cowbell = {{5, 0.7}, {13, 0.7}},
+    conga = {{7, 0.6}, {8, 0.7}, {12, 0.6}}})
+end
+
+SKEL.samba = function(c)
+  local k = zeros()
+  for _, i in ipairs({1, 4, 5, 8, 9, 12, 13, 16}) do k[i] = (i % 4 == 1) and 0.6 or 1 end
+  local s = set(zeros(), {3, 7, 11, 15}, 0.35)
+  local h = zeros()
+  return k, s, h, lane({tamb = {{1, 0.5}, {2, 0.3}, {3, 0.8}, {4, 0.4}, {5, 0.5}, {6, 0.3}, {7, 0.8},
+    {8, 0.4}, {9, 0.5}, {10, 0.3}, {11, 0.8}, {12, 0.4}, {13, 0.5}, {14, 0.3}, {15, 0.8}, {16, 0.4}}})
+end
+
+SKEL.beguine = function(c)
+  local k = set(zeros(), {1, 7, 9}, 0.9)
+  local s = set(zeros(), {3, 7, 11, 15}, 0.45)
+  local h = set(zeros(), {1, 5, 9, 13}, 0.5)
+  return k, s, h, lane({bongo = {{4, 0.7}, {11, 0.6}, {12, 0.8}, {15, 0.6}}, clave = {{9, 0.5}}})
+end
+
+SKEL.rock = function(c)
+  local k = set(zeros(), {1, 9, 11}, 1)
+  local s = set(zeros(), {5, 13}, 0.8)
+  local h = set(zeros(), {1, 3, 5, 7, 9, 11, 13, 15}, 0.6)
+  return k, s, h, lane({guiro = {{15, 0.5}}})
+end
+
+local PRESET = {bossa = true, rhumba = true, chacha = true, samba = true, beguine = true, rock = true}
+
 ------------------------------------------------------------------------
 -- the phrase's material
 ------------------------------------------------------------------------
@@ -121,17 +221,18 @@ end
 function G.build(kit, chaos, family)
   family = family or G.wpick(kit.grooves)
   -- high chaos leans every kit toward the break skeleton
-  if family ~= "brk" and chance(clamp((chaos - 0.55) * 1.2, 0, 0.7)) then family = "brk" end
-  local k, s, h = SKEL[family](chaos)
+  if family ~= "brk" and family ~= "jungle" and chance(clamp((chaos - 0.55) * 1.2, 0, 0.7)) then family = "brk" end
+  local k, s, h, plane = SKEL[family](chaos)
   local P = {family = family, kick = k, snare = s, hats = h}
 
   -- ghost kicks / displacement grow with chaos
   for i = 2, 16 do
-    if k[i] == 0 and chance(0.04 + chaos * 0.18) and family ~= "four" and family ~= "acid" then
+    if k[i] == 0 and chance(0.04 + chaos * 0.18) and family ~= "four" and family ~= "acid" and family ~= "rave"
+      and not PRESET[family] then
       k[i] = 0.45 + math.random() * 0.3
     end
   end
-  if chaos > 0.35 and family ~= "four" then
+  if chaos > 0.35 and family ~= "four" and family ~= "rave" then
     -- push one kick a 16th early or late
     local hits = {}
     for i = 2, 16 do if k[i] > 0 then hits[#hits + 1] = i end end
@@ -196,6 +297,14 @@ function G.build(kit, chaos, family)
     if e[i] == 1 then
       P.perc.steps[i] = {kind = G.pick(kit.perc), vel = 0.5 + math.random() * 0.5,
         deg = G.pick({0, 0, 7, 12, 5, 10, 3})}
+    end
+  end
+  -- a preset's own percussion part, straight in the bar, while chaos is low
+  if plane and not chance(chaos * 0.7) then
+    P.perc = {len = 16, steps = {}}
+    for i = 1, 16 do
+      local st = plane[i]
+      if st then P.perc.steps[i] = {kind = ROLE[st[1]], vel = st[2], deg = G.pick({0, 0, 7, 5})} end
     end
   end
 

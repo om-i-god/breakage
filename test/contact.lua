@@ -2,7 +2,7 @@
 -- (columns), the last frame of a 6 s run each, 2x scale with a gap, as one
 -- PGM. the OLED's levels are mapped with a slight lift so dim atmosphere
 -- shows on a laptop screen as it does on the panel.
---   lua test/contact.lua out.pgm [theme,theme] [frames]   (from the repo root)
+--   [VIEW=2] lua test/contact.lua out.pgm [theme,theme] [frames]   (from the repo root)
 --   sips -s format png out.pgm --out out.png
 function include(p) return dofile(p .. ".lua") end
 dofile("test/unit_visuals.lua")
@@ -21,7 +21,7 @@ local img = {}
 for i = 0, W * Hh - 1 do img[i] = 40 end
 for r, th in ipairs(themes) do
   for c, sc in ipairs(SC) do
-    local st = H.run(th, sc, {frames = frames, keep = true})
+    local st = H.run(th, sc, {frames = frames, keep = true, view = tonumber(os.getenv("VIEW"))})
     local fr = st.frames[#st.frames]
     for y = 0, 63 do for x = 0, 127 do
       local v = fr[y * 128 + x]

@@ -42,15 +42,15 @@ All args floats unless noted. Every voice is a one-shot that frees itself.
 
 | command | args | notes |
 |---|---|---|
-| kick | amp tune decay drive bend type | tune = midi note; bend = pitch-env depth multiplier (1 normal); type 1 sub 2 909 3 808 4 knock 5 gabber |
-| snare | amp tune decay tone pan bend type | bend = semitones glide over the hit (+ up, - down); type 1 909 2 drill (tight pitched body) 3 808 4 noise |
+| kick | amp tune decay drive bend type | tune = midi note; bend = pitch-env depth multiplier (1 normal); type 1 sub 2 909 3 808 4 knock 5 gabber 6 rave 7 acoustic 8 metal 9 minipops |
+| snare | amp tune decay tone pan bend type | bend = semitones glide over the hit (+ up, - down); type 1 909 2 drill (tight pitched body) 3 808 4 noise 5 acoustic 6 jungle 7 metal 8 minipops |
 | clap | amp decay tone pan | |
 | rim | amp tune pan | |
-| hat | amp decay tone pan type | type 1 analog 2 metallic (606) 3 crisp noise. decay > 0.15 is "open"; any hat with decay <= 0.15 chokes the ringing open hat |
+| hat | amp decay tone pan type | type 1 analog 2 metallic (606) 3 crisp noise 4 acoustic (small cymbal) 5 lofi (crushed) 6 minipops (hissy cymbal). decay > 0.15 is "open"; any hat with decay <= 0.15 chokes the ringing open hat |
 | ride | amp decay tone pan | |
 | shaker | amp decay pan | |
 | tom | amp hz decay pan bend | bend in semitones |
-| perc | amp hz decay pan kind | 1 conga 2 bongo 3 cowbell 4 clave 5 acid (resonant saw squelch) |
+| perc | amp hz decay pan kind | 1 conga 2 bongo 3 cowbell 4 clave 5 acid (resonant saw squelch) 6 metal (struck pipe) 7 log (wood) 8 plink (prepared piano) 9 guiro 10 tambourine |
 | tick | amp kind hz pan | 1 click 2 blip 3 crush 4 ring 5 chirp (fm) 6 zap |
 | brk | amp pos len rate pan | play the loaded break from `pos` (0..1 of file) for `len` seconds at `rate` (negative = backwards from pos). monophonic: a new slice fades out the last one in ~3 ms. no-op if nothing loaded |
 | break_load | path (string, "s") | load a sound file (mono or stereo) into the break buffer |

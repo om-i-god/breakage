@@ -474,10 +474,13 @@ local function physics(S)
   local step = num(S.step, 0)
   if step ~= step_seen then step_seen, step_t = step, NOW end
   local sub = clamp((NOW - step_t) / (beat_sec / 4), 0, 0.999)
-  local s16 = (step % 16) + sub
+  -- the bar: S.bar_len 16ths (4/4 = 16, 5/4 = 20 ...), S.sib the next step in it
+  local bl = clamp(math.floor(num(S.bar_len, 16)), 4, 64)
+  local sb = num(S.sib, nil)
+  local s16 = (sb and ((sb - 1) % bl) or (step % 16)) + sub
   stepf = step + sub
   beat_ph = (s16 % 4) / 4
-  bar_ph = s16 / 16
+  bar_ph = s16 / bl
   duck_age = duck_age + DT
   local rec = beat_sec * 0.6
   local ATK = 0.06

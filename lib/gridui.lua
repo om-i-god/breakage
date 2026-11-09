@@ -53,7 +53,7 @@ function GU.key(x, y, z)
     local k = GU.PARTS[x]
     if k then A.toggle_mute(k) end
   elseif y == 6 then
-    if S.brk_ready then A.pad((S.tstep - (S.tstep % 16)) + (x - 1)) end
+    if S.brk_ready then A.pad((S.tstep - (S.sib or 0)) + (x - 1)) end
   elseif y == 8 then
     local act = ({[1] = "drop", [2] = "fill", [3] = "mutate", [4] = "strip", [5] = "throw",
       [7] = "brk_down", [8] = "build", [10] = "stutter", [11] = "tapestop", [12] = "reverse",
@@ -113,7 +113,8 @@ function GU.redraw()
   end
 
   -- break pads + playhead
-  local s = (S.tstep or 0) % 16
+  -- the step coming up in this bar (bars longer than 16 wrap on the row)
+  local s = (S.sib or 0) % 16
   for x = 1, math.min(16, w) do
     if S.brk_ready then g:led(x, 6, (x - 1 == s) and 10 or 3) end
     local lvl = (x - 1 == s and S.playing) and 12 or ((x - 1) % 4 == 0 and 3 or 1)

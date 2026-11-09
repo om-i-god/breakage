@@ -49,6 +49,8 @@ grooves: **four** (four on the floor, offbeat hats), **dub** (kick on 1 with syn
 
 kit changes land on the next bar with new material. **kit changes** (PARAMS) set to **on phrases** lets the conductor switch kits now and then; **kit sets dub/swing/drive** moves those three to the kit's home on each change.
 
+**time signature.** **PARAMS > time signature** (or the **time** page) puts the whole drummer in 4/4, 3/4, 5/4, 6/8, 7/8, 9/8, 5/8 or 7/4. every kit and groove plays in every meter: each beat of the bar borrows a beat of the groove, and each group of beats opens on a strong one. 5/4 has three groupings (**5/4 grouping**): **3+2** (kick snare snare | kick snare), **2+3** (kick snare | kick snare snare) and **2+2+1** (kick snare | kick snare | kick). 7/8 groups its eighths **2+2+3**, **3+2+2** or **2+3+2** (**7/8 grouping**). 6/8 is two dotted quarters. a change lands on the next bar line, fills still run up to the bar's end, and the top right shows the meter. gradient stays in 4/4, so while following in another meter its phrase pulses only keep the link alive; energy, kickless, dub and key still follow.
+
 **the arc (solo).** three play modes:
 - **set (endless):** energy swells and drains over a long cycle with a random walk on top; the troughs are kickless drifts.
 - **track:** intro, build, peak, breakdown (kickless), return, outro over the track length, then stop or roll on.
@@ -106,6 +108,7 @@ the kickless CC and the every-bar CCs need gradient with the `breakage-follow` c
 | sound | kick tune | kick decay | snare tune |
 | voices | kick model | snare model | hat model |
 | groove | groove | perc model | glitch tick model |
+| time | time signature | 5/4 grouping | 7/8 grouping |
 | space | swing | reverb send | chaos crush |
 | break | break level | break pitch | break length |
 | parts | energy | pick a part | its level; K2 mutes, K3 solos |
@@ -168,7 +171,7 @@ top left: the kit (and the one coming). top right: `<> gradient` (with the key o
 
 ## params
 
-- **BREAKAGE:** kit, groove (kit or any groove), chaos, play mode (set / track / hold), phrase length, track length, track end, kit changes, kit sets dub/swing/drive, fills, kick (auto / always / never), hats (auto / always / never), glitch (off / on), freeze material, seed, rebuild from seed, new random material
+- **BREAKAGE:** kit, groove (kit or any groove), chaos, time signature, 5/4 grouping, 7/8 grouping, play mode (set / track / hold), phrase length, track length, track end, kit changes, kit sets dub/swing/drive, fills, kick (auto / always / never), hats (auto / always / never), glitch (off / on), freeze material, seed, rebuild from seed, new random material
 - **FOLLOW:** follow gradient (auto / off), midi in from, cc channel, energy / dub / phrase pulse / kickless cc, follow its key (off / key / key + chords), key root / mode / chord root cc, follow its dub, follow start/stop, root from notes on
 - **BREAK:** break file, break (off / with the kit / replaces snare + hats / replaces the kit), break length (auto, 2–32 beats), break pitch
 - **MIX:** dub, echo time, swing, chaos crush, reverb send, drive, reverb size, echo wow, level, glitch depth

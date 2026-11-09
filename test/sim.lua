@@ -32,6 +32,9 @@ engine = setmetatable({}, {__index = function(_, k)
     end
     if k == "tweak" and not TWEAKS[(...)] then error("engine.tweak: unknown key '" .. (...) .. "'", 2) end
     calls[k] = (calls[k] or 0) + 1
+    if step_log and (k == "snare" or k == "rim" or k == "kick") then
+      step_log[#step_log + 1] = {k, _breakage.S.sib, _breakage.S.bar}
+    end
     if pitch_log then
       -- midi notes of the pitched voices: kick / snare / rim tune, tom / perc / tick hz
       local note
@@ -164,7 +167,7 @@ local function run_bars(n, each)
   while S.bar < b0 + n do
     tick_all()
     guard = guard + 1
-    assert(guard < n * 16 * 4 + 64, "clock stalled")
+    assert(guard < n * 28 * 4 + 64, "clock stalled")
     if each then each() end
   end
 end
@@ -250,6 +253,45 @@ for gi = 2, #G.FAMILIES + 1 do
 end
 params:set("groove", 1)
 assert(S.groove == nil, "groove kit left a forced family")
+-- time signatures: bar lengths, and the 5/4 groupings move the backbeat
+params:set("fills", 3); params:set("play_mode", 3); S.hold_energy = 0.9
+B.set_kit(4); params:set("chaos", 0)
+local LEN = {16, 12, 20, 12, 14, 18, 10, 28}
+for m = 1, 8 do
+  params:set("meter", m)
+  run_bars(2)
+  local t0 = S.tstep
+  run_bars(3)
+  assert(S.tstep - t0 == 3 * LEN[m], "meter " .. m .. ": " .. (S.tstep - t0) / 3 .. " steps a bar, want " .. LEN[m])
+  assert(S.bar_len == LEN[m], "meter " .. m .. " bar_len " .. S.bar_len)
+end
+-- electro's backbeat is pattern steps 5 and 13 (beats 2 and 4): in 5/4 each
+-- grouping puts it on its own beats
+params:set("meter", 3)
+local WANT = {[1] = {[4] = true, [8] = true, [16] = true},     -- 3+2:   K S s | K S
+              [2] = {[4] = true, [12] = true, [16] = true},    -- 2+3:   K S | K S s
+              [3] = {[4] = true, [12] = true}}                 -- 2+2+1: K S | K S | K
+for g = 1, 3 do
+  params:set("group54", g)
+  params:set("groove", 1 + 4)                                    -- electro
+  run_bars(2)
+  step_log = {}
+  run_bars(4)
+  local seen = {}
+  for _, e in ipairs(step_log) do
+    if e[1] ~= "kick" then
+      local st = e[2]                                            -- sib is the step being played
+      assert(WANT[g][st], "5/4 grouping " .. g .. ": backbeat on step " .. st)
+      seen[st] = true
+    end
+  end
+  for st in pairs(WANT[g]) do assert(seen[st], "5/4 grouping " .. g .. ": no backbeat on step " .. st) end
+  step_log = nil
+end
+params:set("groove", 1); params:set("meter", 1); params:set("group54", 1)
+params:set("fills", 1); params:set("play_mode", 1)
+print("time signatures ok")
+
 -- the minipops presets play their percussion parts
 B.set_kit(14); params:set("chaos", 0); run_bars(2)
 local p0 = types.perc9 or 0

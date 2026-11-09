@@ -31,8 +31,12 @@ local function on_pulse()
   -- the last step played (nil before the first). S.bar was bumped when the
   -- running bar began, so the running bar is S.bar - 1; a pulse late in a
   -- bar, or before we've played, belongs to the next one
+  -- gradient's phrases are 4/4 bars: in another time signature its phrase
+  -- edges don't fall on ours, so its pulses only count as a heartbeat
+  if (S.bar_len or 16) ~= 16 then return end
   local s = F.step_in_bar()
-  local edge = (s and s < 8) and S.bar - 1 or S.bar
+  local half = (S.bar_len or 16) / 2
+  local edge = (s and s < half) and S.bar - 1 or S.bar
   -- learn gradient's phrase length from the spacing of its pulses
   if last_pulse_bar then
     local idx = ({[8] = 1, [16] = 2, [32] = 3, [64] = 4})[edge - last_pulse_bar]
@@ -42,7 +46,7 @@ local function on_pulse()
   local moved = (S.phrase_anchor or 0) % (S.phrase_len or 16) ~= edge % (S.phrase_len or 16)
   S.phrase_anchor = edge
   -- the pulse came in just after this bar started: run the phrase edge late
-  if moved and s and s < 8 and hooks.late_phrase then hooks.late_phrase() end
+  if moved and s and s < half and hooks.late_phrase then hooks.late_phrase() end
 end
 
 local function seen()

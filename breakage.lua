@@ -7,6 +7,7 @@
 --   sound: kick tune / decay / snare
 --   voices: kick / snare / hat model
 --   groove: groove / perc / ticks
+--   time: meter / 5/4 / 7/8 grouping
 --   space: swing / reverb / crush
 --   break: level / pitch / beats
 -- K2 tap: drop (kick + hats out)
@@ -48,6 +49,66 @@ local ECHO_DIVS      = {0.5, 0.75, 1, 1.5}
 local ECHO_DIV_NAMES = {"1/8", "3/16", "1/4", "3/8"}
 local GLITCH_NAMES   = {"stutter", "tape stop", "reverse", "chop", "crush"}
 local BRK_BEATS      = {0, 2, 4, 8, 16, 32}       -- 0 = auto
+
+-- time signatures. a bar is a run of beats, in 16ths (4 = a quarter, 6 = a
+-- dotted quarter); each beat borrows one beat of the 16-step pattern (src,
+-- 0-based: 0 the downbeat, 1 and 3 backbeats, 2 the second strong beat),
+-- and a 6-long beat runs on into the next beat's first two 16ths. so every
+-- groove plays in every meter.
+--
+-- 5/4 and 7/8 come in groupings (PARAMS > 5/4 grouping, 7/8 grouping, or
+-- the time page): each group opens on a strong beat, so the accents move.
+-- 5/4  3+2    K S s | K S         (beats from src 0 1 3 | 2 3)
+--      2+3    K S | K S s         (0 1 | 2 1 3)
+--      2+2+1  K S | K S | K       (0 1 | 2 3 | 2)
+-- 7/8  2+2+3, 3+2+2, 2+3+2 (in eighths): the same three beats, regrouped
+local METERS = {
+  {name = "4/4", opts = {{"", {4, 4, 4, 4}, {0, 1, 2, 3}}}},
+  {name = "3/4", opts = {{"", {4, 4, 4}, {0, 1, 3}}}},
+  {name = "5/4", group = "group54", opts = {
+    {"3+2", {4, 4, 4, 4, 4}, {0, 1, 3, 2, 3}},
+    {"2+3", {4, 4, 4, 4, 4}, {0, 1, 2, 1, 3}},
+    {"2+2+1", {4, 4, 4, 4, 4}, {0, 1, 2, 3, 2}}}},
+  {name = "6/8", opts = {{"", {6, 6}, {0, 1}}}},
+  {name = "7/8", group = "group78", opts = {
+    {"2+2+3", {4, 4, 6}, {0, 1, 2}},
+    {"3+2+2", {6, 4, 4}, {0, 1, 2}},
+    {"2+3+2", {4, 6, 4}, {0, 1, 2}}}},
+  {name = "9/8", opts = {{"", {4, 4, 4, 6}, {0, 1, 2, 3}}}},
+  {name = "5/8", opts = {{"", {4, 6}, {0, 1}}}},
+  {name = "7/4", opts = {{"", {4, 4, 4, 4, 4, 4, 4}, {0, 1, 2, 3, 0, 1, 3}}}},
+}
+local METER_NAMES = {}
+local GROUP54, GROUP78 = {}, {}
+for i, o in ipairs(METERS[3].opts) do GROUP54[i] = o[1] end
+for i, o in ipairs(METERS[5].opts) do GROUP78[i] = o[1] end
+-- MAP[m][g][t] = the pattern step (1..16) bar step t (0-based) reads, for
+-- meter m in grouping g
+local MAP = {}
+for i, m in ipairs(METERS) do
+  METER_NAMES[i] = m.name
+  MAP[i] = {}
+  for gi, o in ipairs(m.opts) do
+    local t = {}
+    for g, len in ipairs(o[2]) do
+      local b = o[3][g]
+      for j = 0, len - 1 do
+        local src = j < 4 and (b * 4 + j) or (((b + 1) % 4) * 4 + (j - 4))
+        t[#t + 1] = src + 1
+      end
+    end
+    MAP[i][gi] = t
+  end
+end
+-- the grouping in use for meter m
+local function grouping(m)
+  local id = METERS[m].group
+  return id and params:get(id) or 1
+end
+local function meter_label(m, g)
+  local l = METERS[m].opts[g][1]
+  return METERS[m].name .. (l ~= "" and (" " .. l) or "")
+end
 -- per perc kind: midi base (fixed-pitch kinds 3, 4, 9, 10, 15 use PERC_FIXED), decay
 local PERC_BASE      = {50, 62, 0, 0, 36, 69, 57, 72, 0, 0, 84, 76, 50, 36, 0, 57, 50}
 local PERC_FIXED     = {[3] = 800, [4] = 2500, [9] = 2800, [10] = 6000, [15] = 80}
@@ -68,6 +129,7 @@ local TICK_MODELS  = {"kit", "click", "blip", "crush", "ring", "chirp", "zap", "
 
 local S = {
   playing = false, tstep = 0, step = 0, bar = 0, track_bar = 0,
+  meter = 1, group = 1, bar_len = 16, sib = 0, src_step = 1,  -- time signature + grouping, 16ths in the bar, step in it
   energy = 0.5, nudge = 0, chaos = 0, kit = 1, kit_pending = nil, kit_auto = 1,
   dub = 0.5, phrase_len = 16, phrase_pos = 0, phrase_anchor = 0, cycle_bars = 128,
   mode_play = 1, hold_energy = 0.6, track_minutes = 8, end_action = 2,
@@ -329,7 +391,7 @@ local FILL_SUPPRESS = {
 
 local function do_fill(s)
   local f = S.fill
-  local i = s + 1
+  local i = s + 1 + (16 - S.bar_len)    -- counted back from the bar's end, as in 4/4
   local j = i - f.start            -- 0.. into the fill
   local len = 17 - f.start
   local u = j / math.max(1, len - 1)
@@ -401,7 +463,15 @@ local function hit(part, vel, fn)
 end
 
 local function play_step()
-  local s = S.tstep % 16
+  -- a new time signature lands on the next bar line
+  if S.sib >= S.bar_len then S.sib = 0 end
+  if S.sib == 0 then
+    S.meter = params:get("meter")
+    S.group = grouping(S.meter)
+    S.bar_len = #MAP[S.meter][S.group]
+  end
+  local s = S.sib
+  local N = S.bar_len
   S.step = S.tstep
   if s == 0 then
     F.bar()
@@ -421,8 +491,10 @@ local function play_step()
   end
 
   local P = S.pat
-  local i = s + 1
-  local beat, sub = s // 4 + 1, s % 4
+  local src = MAP[S.meter][S.group][s + 1]  -- the pattern step this bar step reads
+  S.src_step = src
+  local i = s + 1 + (16 - N)               -- for fills: counted back from the bar's end
+  local beat, sub = (src - 1) // 4 + 1, s % 4
   local e = S.edit
   local skip = e and e.beat == beat and e.kind == "skip"
 
@@ -444,7 +516,7 @@ local function play_step()
   local sup = {}
   if S.fill and i >= S.fill.start then sup = do_fill(s) end
 
-  local r = read_at(s)
+  local r = read_at(src - 1)
   -- halftime: kick, snare and clap read the first half of the bar, stretched
   local rh = r
   local half_off = false
@@ -527,7 +599,8 @@ local function play_step()
 
   -- perc lane: phases against the bar on the running step count
   if (S.gain.perc or 0) > 0 and P.perc then
-    local st = P.perc.steps[(S.tstep % P.perc.len) + 1]
+    -- odd-length lanes phase on the running count; a 16-long (written) lane reads with the bar
+    local st = P.perc.steps[P.perc.len == 16 and r or ((S.tstep % P.perc.len) + 1)]
     if st then hit("perc", st.vel * ev("perc"), function(a) perc(st, a) end) end
   end
 
@@ -548,6 +621,7 @@ local function play_step()
   end
 
   S.tstep = S.tstep + 1
+  S.sib = S.sib + 1
 end
 
 ------------------------------------------------------------------------
@@ -575,6 +649,7 @@ start = function(now)
   S.playing = true
   S.bpm = clock.get_tempo()
   S.tstep = 0
+  S.sib = 0
   loop_gen = loop_gen + 1
   local my = loop_gen
   main_clock = clock.run(function() loop(my, now) end)
@@ -752,6 +827,7 @@ local PAGES = {
   {name = "sound", {"kick_tune", 1}, {"kick_decay", 1}, {"snare_tune", 1}},
   {name = "voices", {"kick_model", 1}, {"snare_model", 1}, {"hat_model", 1}},
   {name = "groove", {"groove", 1}, {"perc_model", 1}, {"tick_model", 1}},
+  {name = "time", {"meter", 1}, {"group54", 1}, {"group78", 1}},
   {name = "space", {"swing", 1},   {"verb_send", 1},  {"crush_amt", 1}},
   {name = "break", {"break_lvl", 1}, {"brk_pitch", 1}, {"brk_beats", 1}},
   {name = "parts", {"_energy", 1}},
@@ -895,6 +971,7 @@ local function draw_hud()
     st = st .. " " .. (S.phrase_pos + 1) .. "/" .. S.phrase_len
     if S.kickless and S.playing then st = st .. " ~" end
     if S.halftime then st = st .. " half" end
+    if S.meter ~= 1 then st = st .. " " .. meter_label(S.meter, S.group) end
     text_box(127, 7, st, S.playing and 8 or 3, true)
 
     screen.level(0)
@@ -995,6 +1072,10 @@ local function setup_params()
     if v == 2 then S.track_bar = 0 end
     if v == 3 then S.hold_energy = S.energy end
   end)
+  params:add_option("meter", "time signature", METER_NAMES, 1)
+  params:set_action("meter", function() if not S.playing then S.sib = 0 end end)
+  params:add_option("group54", "5/4 grouping", GROUP54, 1)
+  params:add_option("group78", "7/8 grouping", GROUP78, 1)
   params:add_option("phrase_len", "phrase length (bars)", {"8", "16", "32", "64"}, 2)
   params:set_action("phrase_len", function(v)
     local old = S.phrase_len
@@ -1136,7 +1217,7 @@ function init()
   VIS.init()
   F.step_in_bar = function()
     if not S.playing or S.tstep == 0 then return nil end
-    return (S.tstep - 1) % 16
+    return (S.sib - 1) % S.bar_len
   end
   F.N_MODES = #SCALES
   F.init(S, {

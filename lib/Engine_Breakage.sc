@@ -87,10 +87,13 @@ Engine_Breakage : CroneEngine {
 
     // shared helpers, expanded at SynthDef build time
 
-    // kick saturation: exactly clean at 0, a hot tanh blend up to 1
+    // kick saturation: exactly clean at 0, a hot tanh blend up to 1.
+    // loudness-compensated: the tanh squares the kick off at the same peak,
+    // which made driven kits ~10 dB louder than clean ones and slammed the
+    // master's drive (heard as clipping); scaled down as the drive rises
     kdrive = { |sig, d|
       var dd = d.clip(0, 1);
-      (sig * (1 - dd)) + ((sig * (1 + (dd * 8))).tanh * (0.9 * dd))
+      ((sig * (1 - dd)) + ((sig * (1 + (dd * 8))).tanh * (0.9 * dd))) / (1 + (dd * 1.5))
     };
 
     // stereo voice -> main + sends

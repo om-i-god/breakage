@@ -217,7 +217,9 @@ return function(K)
     local R = 24
     local yb = MY + MH
     -- the face: a warm glow from behind, brighter in the middle
-    local glow = 1.1 + e * 0.5 + lamp[m] * 0.6 + val * 0.4 + 0.05 * math.sin(K.T * 7.3 + m)
+    -- each face is backlit by its own band: lo / mid / hi
+    local band = A[m == 1 and K.LO or (m == 2 and K.MID or K.HI)]
+    local glow = 1.1 + e * 0.5 + lamp[m] * 0.6 + val * 0.4 + band * 1.1 + 0.05 * math.sin(K.T * 7.3 + m)
     K.gradient(MY + 1, MY + 11, function(y)
       return glow * (1 - 0.25 * (y - MY) / 11)
     end, nil, x0 + 1, x0 + MW)
@@ -254,17 +256,23 @@ return function(K)
     local T, DT, e, c = K.T, K.DT, K.energy, K.chaos
     local lo, hi = A[K.LO], A[K.HI]
 
-    -- the rails, their holes
-    for _, x in ipairs({2, 122}) do
+    local mid, amp = A[K.MID], A[K.AMP]
+    -- the rails, their holes catching glints of the air (hi)
+    for ri, x in ipairs({2, 122}) do
       line(2, x, 0, x, 63)
       line(2, x + 4, 0, x + 4, 63)
-      for y = 3, 63, 7 do put(1, x + 1, y, 3, 2) end
+      for y = 3, 63, 7 do
+        local g = K.hash(y + ri * 13 + math.floor(T * 9) * 7, 41)
+        put(1 + hi * (g > 0.5 and 4 or 1.5), x + 1, y, 3, 2)
+      end
     end
+
     -- the units: lit top edge, shadow gap under
     for _, u in ipairs({{0, 27}, {LY - 1, 9}, {39, 25}}) do
       local y0, h = u[1], u[2]
-      line(2.5 + K.bar_pulse * 0.5, 8, y0, 120, y0)
-      put(2, 10, y0 + 2, 1, 1); put(2, 117, y0 + 2, 1, 1)
+      -- each unit's lit top edge and its screws glow with the level (amp)
+      line(1.5 + amp * 3 + K.bar_pulse * 0.5, 8, y0, 120, y0)
+      put(1 + amp * 4, 10, y0 + 2, 1, 1); put(1 + amp * 4, 117, y0 + 2, 1, 1)
     end
 
     -- the meter bridge
@@ -275,7 +283,8 @@ return function(K)
     if not K.playing then step = math.floor(T * 2) % 16 end
     for s = 0, 15 do
       local on = s == step
-      local l = 1.2 + (s % 4 == 0 and 0.8 or 0)
+      -- the unlit lamps glow with the body of the mix (mid), a wave along the strip
+      local l = 1.2 + (s % 4 == 0 and 0.8 or 0) + mid * (2.5 + 1.5 * math.sin(T * 4 - s * 0.6))
       if on then l = 9 + K.env.kick * 2 end
       put(l, 14 + s * 5, LY + 3, 3, 2)
     end
@@ -285,8 +294,9 @@ return function(K)
     -- the bay: jacks
     for r = 1, 2 do
       for j = 1, NJ do
-        local lv = 2.5 + (r == 1 and lamp[1 + (j - 1) % 3] * 3 or 0)
+        local lv = 2.5 + (r == 1 and lamp[1 + (j - 1) % 3] * 3 or mid * 2.5)
         K.ring(lv, JX[j], JY[r], 2, 6)
+        if r == 2 then put(mid * 4 * (0.6 + 0.4 * math.sin(T * 3 + j)), JX[j] - 1, JY[r] - 1, 2, 2) end
       end
     end
     -- a power lamp, breathing
@@ -318,9 +328,14 @@ return function(K)
     line(5 + lv * 2, x, y, x + math.cos(a) * 3.5, y + math.sin(a) * 3.5)
   end
 
-  local function scope2(m, fn, lv, n)
+  local function scope2(m, fn, lv, n, glow)
     local x0, x1 = MODX[m] + 3, MODX[m] + MODW - 3
     local cy = (SCY0 + SCY1) / 2
+    -- the phosphor's backlight, lit by the band this module hears (flat, so
+    -- a shake moves only its edges)
+    if glow and glow > 0.05 then
+      put(glow * (1.3 + 0.2 * math.sin(K.T * 2.3 + m)), x0, SCY0, x1 - x0 + 1, SCY1 - SCY0 + 1)
+    end
     -- the screen: its bezel and a centre line
     line(1.2, x0 - 1, SCY0 - 1, x1 + 1, SCY0 - 1)
     line(1.2, x0 - 1, SCY1 + 1, x1 + 1, SCY1 + 1)
@@ -339,16 +354,16 @@ return function(K)
 
   local function wall(S)
     local T, DT, e, c = K.T, K.DT, K.energy, K.chaos
-    local lo, hi, mid = A[K.LO], A[K.HI], A[K.MID]
+    local lo, hi, mid, amp = A[K.LO], A[K.HI], A[K.MID], A[K.AMP]
     local kl = K.kickless
 
     -- the modules: panel edges (vertical, they run off the top and bottom),
-    -- the screws, a rail across the top
+    -- the screws, a rail across the top; the panels' edges light with the level
     for m = 1, 4 do
       local x = MODX[m]
-      line(2, x, 0, x, 63)
-      line(1, x + MODW, 0, x + MODW, 63)
-      put(2, x + 3, 1, 2, 1); put(2, x + MODW - 4, 62, 2, 1)
+      line(1.5 + amp * 3, x, 0, x, 63)
+      line(0.8 + amp * 1.5, x + MODW, 0, x + MODW, 63)
+      put(1.5 + amp * 4, x + 3, 1, 2, 1); put(1.5 + amp * 4, x + MODW - 4, 62, 2, 1)
     end
 
     -- module 1: the kick's oscillator. a sine dropping in pitch, dying away
@@ -365,7 +380,7 @@ return function(K)
       if u > sweep then y = y * 0.4 end
       if fold > 1.05 then y = math.sin(y * fold) / math.sin(math.min(1.5, fold)) end
       return y * (0.35 + 0.65 * kfade) + (lo - 0.3) * 0.1
-    end, idle and 5 or (4 + kfade * sweep * 4.5 + e), 22)
+    end, idle and 5 or (4 + kfade * sweep * 4.5 + e), 22, lo)
     knob2(MODX[1] + 8, 32, 0.3 + e * 0.5, e)
     knob2(MODX[1] + 22, 32, 0.6 - kl * 0.4, e)
     knob2(MODX[1] + 15, 41, 0.2 + lo * 0.6, e)
@@ -383,7 +398,7 @@ return function(K)
       y = y * (0.25 + 0.75 * sfade) + (K.hash(math.floor(u * 22) + math.floor(T * 6) * 7, 6) - 0.5) * mid * 0.15
       if c > 0.3 then y = y + math.sin(u * 30 + T * 6) * c * 0.2 end
       return y
-    end, 3.5 + sfade * ssweep * 4.5 + e, 22)
+    end, 3.5 + sfade * ssweep * 4.5 + e, 22, mid)
     knob2(MODX[2] + 8, 32, 0.4 + mid * 0.4, e)
     knob2(MODX[2] + 22, 32, 0.5 + K.env.snare * 0.3, e)
     -- a slider: the snare's decay, its cap riding with energy
@@ -402,8 +417,8 @@ return function(K)
       local col, row = s // 4, s % 4
       local x, y = MODX[3] + 8 + col * 14, 6 + row * 9
       local on = s == seq_i
-      K.ring(1.2 + (on and 3 or 0), x + 1, y + 1, 2.6, 6)
-      put(on and (10 + K.env.kick * 3) or 1.2, x, y, 3, 3)
+      K.ring(1.2 + amp * 1.5 + (on and 3 or 0), x + 1, y + 1, 2.6, 6)
+      put(on and (10 + K.env.kick * 3) or (1.2 + amp * 3), x, y, 3, 3)
       -- each step's pitch knob, a tick beside its lamp
       local kv = K.hash(s, 31)
       local a = math.pi * 0.75 + kv * math.pi * 1.5
@@ -423,7 +438,7 @@ return function(K)
         end
       end
       return math.min(y, 1)
-    end, 4 + hatv * 3 + e, 20)
+    end, 4 + hatv * 3 + e, 20, hi)
     for i = #hat_spikes, 1, -1 do if K.T - hat_spikes[i].t0 > 1.2 then table.remove(hat_spikes, i) end end
     knob2(MODX[4] + 8, 32, 0.25 + hi * 0.6, e)
     knob2(MODX[4] + 22, 32, 0.5 + math.sin(T * 0.4) * 0.1, e)
@@ -432,7 +447,7 @@ return function(K)
     for m = 1, 4 do
       for j, P in ipairs(JACK2[m]) do
         local pl = pulse[m] * (j <= 3 and 1 or 0.6)
-        K.ring(1.2 + pl * 3, P[1], P[2], 2.5, 6)
+        K.ring(1.2 + amp * 0.6 + pl * 3, P[1], P[2], 2.5, 6)
         put(1 + pl * 10, P[1], P[2], 1, 1)
       end
     end

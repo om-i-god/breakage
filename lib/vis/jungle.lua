@@ -185,13 +185,14 @@ return function(K)
   ----------------------------------------------------------------------
   local function draw_block(S)
     local T, DT, e, c = K.T, K.DT, K.energy, K.chaos
-    local lo, hi = A[K.LO], A[K.HI]
+    local lo, hi, md, amp = A[K.LO], A[K.HI], A[K.MID], A[K.AMP]
     local kl = K.kickless
 
-    -- the sodium sky, thickest at the horizon
+    -- the sodium sky, thickest at the horizon; the level of the mix (amp)
+    -- burns it brighter and lower
     for y = 10, GY - 1, 2 do
       local u = (y - 10) / (GY - 10)
-      stipple(y, u * u * (0.7 + e * 0.5 + lo * 0.2), 1 + u)
+      stipple(y, u * (u + amp * 0.5) * (0.7 + e * 0.5 + lo * 0.2), 1 + u + amp * 1.5 * u)
     end
     -- side blocks: roof edges and their windows
     put(1.5, 4, 26, 28, 1); put(1.5, 98, 31, 26, 1); put(1, 32, 38, 12, 1); put(1, 86, 40, 12, 1)
@@ -200,7 +201,7 @@ return function(K)
     for i = 1, #SIDE do
       local W = SIDE[i]
       local lv = 0
-      if W.h < 0.15 + e * 0.25 then lv = 1.5 + W.h * 4 end
+      if W.h < 0.15 + e * 0.25 + md * 0.2 then lv = 1.5 + W.h * 4 + md * 1.5 end
       if flick[i] then
         local u = (K.T - flick[i]) / 0.4
         if u >= 1 then flick[i] = nil else lv = math.max(lv, 6 * (1 - u)) end
@@ -213,7 +214,8 @@ return function(K)
     put(2.5, TX0, TTOP, TX1 - TX0, 1)
     line(2 + lo * 0.8, TX0, TTOP, TX0, GY - 1)
     line(1.2, TX1 - 1, TTOP, TX1 - 1, GY - 1)
-    local share = 0.15 + e * 0.35
+    -- the body of the mix (mid): more homes awake, their lamps warmer
+    local share = 0.15 + e * 0.35 + md * 0.2
     for f = 1, NFL do
       local y = TTOP + 3 + (f - 1) * 4
       local to = 0
@@ -226,7 +228,7 @@ return function(K)
         local x = TX0 + 2 + (col - 1) * 5 + ox
         local h = K.hash(i, 61)
         local lv = win[i]
-        if h < share then lv = math.max(lv, 1.5 + h * 6) end
+        if h < share then lv = math.max(lv, 1.5 + h * 6 + md * (2 + math.sin(T * 1.7 + i))) end
         if h > 0.97 then lv = math.max(lv, 1.5 + 1.2 * (math.sin(T * 9 + i) * math.sin(T * 2.7 + i)) + 1) end
         if lv >= 0.6 then put(lv, x, y, 3, 2) else put(1, x + 1, y + 1, 1, 1) end
       end
@@ -265,7 +267,7 @@ return function(K)
 
     -- the base: the lobby, the sub's glow pooled round the foot
     kglow = kglow * math.exp(-DT / 0.25)
-    local g = math.max(kglow, lo * 0.55) * (1 - kl * 0.8)
+    local g = math.max(kglow, lo * 0.9) * (1 - kl * 0.8)
     put(1.5 + g * 9, 60, GY - 5, 5, 4)
     put(1, 59, GY - 6, 7, 1)
     for y = GY - 7, 63, 2 do
@@ -328,7 +330,7 @@ return function(K)
 
   local function draw_canopy(S)
     local T, DT, e, c = K.T, K.DT, K.energy, K.chaos
-    local lo, hi = A[K.LO], A[K.HI]
+    local lo, hi, md, amp = A[K.LO], A[K.HI], A[K.MID], A[K.AMP]
     local kl = K.kickless
 
     -- the trunks
@@ -348,17 +350,20 @@ return function(K)
     end
     -- the canopy: a dim ragged roof, its underside lit by the snare
     canopy_fl = canopy_fl * math.exp(-DT / 0.25)
+    -- the roof catches the moon as the mix fills (amp), in slow patches
     for col = 0, 63 do
       local b = math.floor(CAN[col])
-      put(1, col * 2, 0, 2, b)
+      put(1 + amp * (0.6 + 0.5 * math.sin(col * 1.1 + T * 0.6) + 0.4 * K.hash(col, 77)), col * 2, 0, 2, b)
     end
     -- leaf clumps hanging off the roof, nodding; the snare lights their undersides
     for i = 1, #CLUMP do
       local C = CLUMP[i]
-      local nod = math.sin(T * 0.4 + i * 1.3) * (0.8 + e * 0.6)
-      K.disc(1, C.x + nod, C.y, C.r)
-      local lv = 1.5 + canopy_fl * 5 + hi * 0.8
-      K.ring(lv, C.x + nod, C.y, C.r, 6, math.pi * 0.15, math.pi * 0.85)
+      -- the body of the mix (mid) heaves the clumps and lights their undersides
+      local nod = math.sin(T * (0.4 + md * 0.8) + i * 1.3) * (0.8 + e * 0.6 + md * 1.5)
+      local dip = md * 1.2 * (0.5 + 0.5 * math.sin(T * 1.1 + i * 2.1))
+      K.disc(1, C.x + nod, C.y + dip, C.r)
+      local lv = 1.5 + canopy_fl * 5 + hi * 0.8 + md * 2
+      K.ring(lv, C.x + nod, C.y + dip, C.r, 6, math.pi * 0.15, math.pi * 0.85)
     end
     -- moonlight through the gaps
     for i = 0, 4 do
@@ -371,7 +376,7 @@ return function(K)
       local V = VINE[i]
       local x0 = V[1]
       local y0 = math.floor(CAN[x0 // 2])
-      local amp = 2 + e * 2 + c * 4
+      local amp = 2 + e * 2 + c * 4 + md * 3
       leaf_fl[i] = leaf_fl[i] * math.exp(-DT / 0.15)
       local px, py = x0, y0
       for k = 1, 6 do
@@ -385,16 +390,18 @@ return function(K)
           local side = (k % 2 == 0) and 1 or -1
           local lx = nx + side * (1 + math.floor(fl * 2))
           local ly = ny - math.floor(fl * 2)
-          line(2 + fl * 6, nx, ny, lx + side * 2, ly - 1)
-          put(1.5 + fl * 4, lx + side * 2, ly, side > 0 and 1 or 1, 1)
+          -- the air (hi) glints on the wet leaves
+          local gl = hi * (K.hash(k + i * 7, math.floor(T * 5)) > 0.5 and 4 or 1.5)
+          line(2 + fl * 6 + gl * 0.5, nx, ny, lx + side * 2, ly - 1)
+          put(1.5 + fl * 4 + gl, lx + side * 2, ly, 1, 1)
         end
         px, py = nx, ny
       end
     end
     -- the forest floor and the kick's glow lifting off it
     kglow = kglow * math.exp(-DT / 0.3)
-    local g = math.max(kglow, lo * 0.5) * (1 - kl * 0.8)
-    put(1.5, 0, GY, 128, 1)
+    local g = math.max(kglow, lo * 0.7) * (1 - kl * 0.8)
+    put(1.5 + lo * 1.5, 0, GY, 128, 1)
     for y = GY - 8, 63, 2 do
       local d = (1 - math.abs(y - GY) / 10) * g
       if d > 0.08 then

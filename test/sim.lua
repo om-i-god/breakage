@@ -214,13 +214,13 @@ for k, kt in ipairs(KT.list) do
   for _, pk in ipairs(kt.perc) do any = any or types["perc" .. pk] ~= nil end
   assert(any, kt.name .. ": none of its perc played")
 end
-for ty = 1, 8 do assert(types["snare" .. ty], "snare model " .. ty .. " never played") end
+for ty = 1, 15 do assert(types["snare" .. ty], "snare model " .. ty .. " never played") end
 
 -- SOUND > models override the kit's own, on every voice
 B.set_kit(10); params:set("chaos", 60)
 params:set("play_mode", 3); S.hold_energy = 0.9
-local OVR = {{"kick_model", "kick", 10}, {"snare_model", "snare", 9}, {"hat_model", "hat", 7},
-  {"perc_model", "perc", 11}, {"tick_model", "tick", 7}}
+local OVR = {{"kick_model", "kick", 17}, {"snare_model", "snare", 16}, {"hat_model", "hat", 10},
+  {"perc_model", "perc", 18}, {"tick_model", "tick", 9}}
 for _, o in ipairs(OVR) do
   local id, voice, n = o[1], o[2], o[3]
   for m = 2, n do
@@ -418,6 +418,10 @@ key(1, 1); enc(2, -10); key(1, 0)
 for _, x in ipairs({1, 2, 3, 4, 5, 7, 8, 10, 11, 12}) do grid_dev.key(x, 8, 1) end
 grid_dev.key(12, 2, 1); grid_dev.key(16, 3, 1); grid_dev.key(3, 4, 1); grid_dev.key(2, 5, 1)
 grid_dev.key(5, 6, 1)
+-- the kit row pages: key 16 flips to kits 16-26
+B.set_kit(1); run_bars(2)
+grid_dev.key(16, 4, 1); grid_dev.key(5, 4, 1); run_bars(2)
+assert(S.kit == 20, "grid page 2 key 5 should be kit 20, got " .. S.kit)
 run_bars(4)
 for _, id in ipairs({"p_drop", "p_fill", "p_mutate", "p_strip", "p_throw", "p_build", "p_break",
     "p_stutter", "p_tapestop", "p_reverse", "p_chop", "p_kit_next", "p_kit_prev"}) do

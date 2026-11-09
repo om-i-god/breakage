@@ -24,6 +24,11 @@
 -- tick a lamp. energy turns the knobs up; chaos rewrites the pattern bar
 -- by bar and scatters ghost keys; kickless every step glides and the keys
 -- fade slowly.
+--
+-- the ears: the mids push the resonance up (both views); view 1, the lows
+-- swing the trace, the mids fill its body and its bloom, the highs open the
+-- cutoff and fizz the glass; view 2, the lows lean on the case sides and the
+-- lamp row, the mids light the keys from inside, the highs glint the knobs.
 return function(K)
   local M = {}
   local put, line, A, clamp = K.put, K.line, K.A, K.clamp
@@ -188,7 +193,7 @@ return function(K)
 
   local function scope(S)
     local T, DT, e, c = K.T, K.DT, K.energy, K.chaos
-    local lo, hi = A[K.LO], A[K.HI]
+    local lo, hi, mid = A[K.LO], A[K.HI], A[K.MID]
     local kl = K.kickless
 
     -- the trigger: locked on the beat, slipping with chaos, rolling kickless
@@ -218,6 +223,8 @@ return function(K)
       if gx ~= 4 then for y = Y0 + 3, Y1 - 2, 5 do put(1, x, y, 1, 1) end end
     end
     K.dashes(1.6, MY, 1, 4, 0, X0 + 1, X1)
+    -- the highs: the phosphor fizzes on the glass
+    K.haze(X0 + 1, Y0 + 1, X1, Y1, hi * 0.3, 1, T * 30)
     local cx = math.floor((X0 + X1) / 2)
     for y = Y0 + 1, Y1 - 1, 3 do put(1.6, cx, y, 1, 1) end
 
@@ -260,17 +267,18 @@ return function(K)
     -- the bloom round the beam, then the beam: brightest behind its head
     local hx = su * N
     local core = 9.5 + e * 1.5 + K.env.kick * 2 + acidv * 1.5
-    local bloom = 3 + e * 1.2 + hi * 1.5 + K.env.hat * 1.5 + K.env.ohat * 2 + acidv
+    local bloom = 2.4 + e * 1.2 + hi * 1.5 + mid * 1.4 + K.env.hat * 1.5 + K.env.ohat * 2 + acidv
     local function behind(i, lv)
       local age = (hx - i) % N / N
       return lv * (0.45 + 0.55 * math.exp(-age * 3))
     end
     -- the afterglow: the wave's body filled faintly down to the centre line
-    local fl = 1 + e * 0.6 + K.env.kick * 1.2 + acidv * 0.8
+    -- (the mids fill it out: the wave's body)
+    local fl = 0.5 + mid * 2 + e * 0.6 + K.env.kick * 1.2 + acidv * 0.8
     local sw = (X1 - X0) / N
     for i = 0, N - 1 do
       local y = (ys[i] + ys[i + 1]) / 2
-      local a, b = math.min(y + 2, MY), math.max(y - 2, MY)
+      local a, b = math.min(y + 2 + mid * 2, MY), math.max(y - 2 - mid * 2, MY)
       if b - a >= 1 then put(behind(i, fl), X0 + i * sw, a, math.ceil(sw), b - a) end
     end
     trace(bloom * 0.4, ys, -2, 0, behind, 2)
@@ -326,7 +334,7 @@ return function(K)
   local function knob(x, y, val, lv, hot)
     if hot > 0.3 then K.disc(hot * 2, x, y, 3) end
     K.ring(1.8 + lv * 0.3 + hot * 3, x, y, 6, 12)
-    K.ring(2.5 + lv * 0.3 + hot * 4, x, y, 6, 4, math.pi * 1.0, math.pi * 1.45)   -- the rim's lit side
+    K.ring(2.5 + lv * 0.3 + hot * 4 + A[K.HI] * 4, x, y, 6, 4, math.pi * 1.0, math.pi * 1.45)   -- the rim's lit side
     local a = math.pi * 0.75 + clamp(val, 0, 1) * math.pi * 1.5
     line(8 + hot * 4, x + math.cos(a) * 1.5, y + math.sin(a) * 1.5, x + math.cos(a) * 5, y + math.sin(a) * 5)
     -- the scale's end dots
@@ -336,7 +344,7 @@ return function(K)
 
   local function box(S)
     local T, DT, e, c = K.T, K.DT, K.energy, K.chaos
-    local lo, hi = A[K.LO], A[K.HI]
+    local lo, hi, mid = A[K.LO], A[K.HI], A[K.MID]
     local kl = K.kickless
 
     -- the sequencer: which step plays, and where the light is
@@ -366,10 +374,11 @@ return function(K)
     end
 
     -- the box: its panel edge, a seam, the front edge with the kick's thump
-    local th = thump
+    -- (the lows lean on it: the case's sides and the lamp row)
+    local th = thump + lo * 0.6
     -- (close up: the box runs off the top and bottom of the screen)
-    line(2 + th * 2, 3, 0, 3, 63)
-    line(2 + th * 2, 124, 0, 124, 63)
+    line(1.5 + th * 2, 3, 0, 3, 63)
+    line(1.5 + th * 2, 124, 0, 124, 63)
     line(1, 1, 0, 1, 63)
     line(1, 126, 0, 126, 63)
     line(1, 4, 24, 123, 24)
@@ -388,9 +397,9 @@ return function(K)
     for s = 0, 15 do
       local x = 8 + s * 7
       local on = s == step
-      local l = 1
-      if accent_at(s) then l = 2 end
-      l = l + th * 1.5
+      local l = 0.7
+      if accent_at(s) then l = 1.7 end
+      l = l + th * 2
       if on then l = 10 + accent * 2 end
       if rest_at(s) and not on then l = 1 end
       put(l, x, LED_Y, 4, 2)
@@ -404,7 +413,7 @@ return function(K)
       local k = KEYS[s]
       if not k.black then
         local lit = keylit[s] + ghostkey[s] * 0.5
-        local l = 1 + lit * 4
+        local l = 1 + mid * 1.6 + lit * 4
         local lb = (s ~= 0 and s ~= 5 and s ~= 12)   -- a black key on the left
         local rb = (s ~= 4 and s ~= 11 and s ~= 12)  -- and on the right
         local xa = k.x + 1 + (lb and 4 or 0)
@@ -421,8 +430,8 @@ return function(K)
       local k = KEYS[s]
       if k.black then
         local lit = keylit[s] + ghostkey[s] * 0.5
-        line(kb * 0.8, k.x, KY0, k.x, KYB)
-        line(kb * 0.8, k.x + k.w, KY0, k.x + k.w, KYB)
+        line(kb * 0.8 + mid * 1.5, k.x, KY0, k.x, KYB)
+        line(kb * 0.8 + mid * 1.5, k.x + k.w, KY0, k.x + k.w, KYB)
         line(kb * 0.8, k.x, KYB, k.x + k.w, KYB)
         if lit > 0.05 then put(lit * 6, k.x + 2, KY0 + 2, k.w - 3, KYB - KY0 - 3) end
         if lit > 0.2 then put(lit * 12, k.x + 2, KYB - 4, k.w - 3, 2) end
@@ -461,7 +470,7 @@ return function(K)
     acidv = acidv * math.exp(-DT / 0.35)
     local fc_to = 1.4 + e * 3.5 + hi * 1.5 + K.env.acid * 4 + acidv * 2 + K.env.fill * 2
     fc = K.follow(fc, fc_to, fc_to > fc and 0.05 or 0.4, DT)
-    local q_to = 0.9 + acidv * 6 + c * 2 + K.env.perc * 0.5
+    local q_to = 0.9 + acidv * 6 + c * 2 + K.env.perc * 0.5 + A[K.MID] * 2.5
     q = K.follow(q, q_to, q_to > q and 0.04 or 0.5, DT)
     -- the kick's deflection: a damped spring
     kdv = kdv + (-kd * 260 - kdv * 14) * DT

@@ -29,7 +29,15 @@
 -- the history for every theme.
 --
 -- perc kinds: 1 conga 2 bongo 3 cowbell 4 clave 5 acid 6 metal 7 log 8 plink
--- 9 guiro 10 tambourine.
+-- 9 guiro 10 tambourine 11 music box 12 squeak 13 talking drum 14 wobble
+-- 15 vinyl crackle 16 vox 17 syntom. ticks 1..8: click blip crush ring chirp
+-- zap error pop.
+--
+-- audio reactivity (VISUALS > audio reactivity, 0..10, 5 = as heard): K.A
+-- is the engine's four bands as the themes see them, scaled by it (0 = the
+-- pictures run on the drum events alone, 10 = twice as hard), and the whole
+-- picture breathes with the output level: it dims a little as the mix
+-- thins out and comes back up as it fills.
 -- K.view (1 or 2, the vis_view param) picks the theme's second view: every
 -- theme draws both. vis_shake (off / soft / hard) jolts the whole picture
 -- down a pixel or few on each kick, applied under the themes.
@@ -48,7 +56,9 @@ local VIS = {}
 
 VIS.audio_level = 0
 VIS.names = {"dub", "house", "acid", "analord", "syro", "broken", "drill", "gabber",
-  "ambient", "rave", "jungle", "industrial", "acoustic", "minipops"}
+  "ambient", "rave", "jungle", "industrial", "acoustic", "minipops",
+  "techno", "dubstep", "breakcore", "glitch", "toy", "boombap", "tribal", "garage",
+  "footwork", "trap", "disco", "motorik"}
 
 local FPS = 20
 local TAU = 2 * math.pi
@@ -68,6 +78,8 @@ local AMP, LO, MID, HI = 1, 2, 3, 4
 local A_IDX = {out_amp = AMP, out_lo = LO, out_mid = MID, out_hi = HI}
 local raw = {0, 0, 0, 0}
 local A = {0, 0, 0, 0}
+local AV = {0, 0, 0, 0}                         -- A as the themes see it (scaled)
+local react = 1                                 -- audio reactivity gain (1 = as heard)
 local RISE = {0.03, 0.03, 0.05, 0.03}           -- s: rise fast...
 local FALL = {0.35, 0.25, 0.4, 0.2}             -- ...fall a little slower
 local heard = -1                                -- NOW when a poll last arrived
@@ -114,7 +126,7 @@ local slice_i, slice_n, slice_rev = 0, 8, false
 local tick_odd = false
 local shake_dy = 0                      -- kick shake: whole-picture jolt, px
 
-local K = {A = A, AMP = AMP, LO = LO, MID = MID, HI = HI, TAU = TAU,
+local K = {A = AV, AMP = AMP, LO = LO, MID = MID, HI = HI, TAU = TAU,
   env = env, last = last, hist = hist, HIST_N = HIST_N}
 
 local function clamp(v, lo, hi) return math.max(lo, math.min(hi, v)) end
@@ -521,6 +533,7 @@ local function sync(S)
   K.stepf = stepf
   K.S = S
   K.view = opt("vis_view", 1) == 2 and 2 or 1
+  K.react = react
 end
 
 K.clamp, K.num, K.ease, K.follow, K.rnd, K.hash, K.opt =
@@ -595,7 +608,7 @@ function VIS.init()
   for k in pairs(last) do last[k] = nil end
   grain_acc = 0
   for k in pairs(env) do env[k] = 0 end
-  for k = 1, 4 do raw[k], A[k] = 0, 0 end
+  for k = 1, 4 do raw[k], A[k], AV[k] = 0, 0, 0 end
   heard = -1
   energy, chaos, trend, kickless, energy_seen = 0, 0, 0, 0, false
   duck, duck_age, beat_ph, bar_ph, beat_sec = 0, 99, 0, 0, 0.5
@@ -685,13 +698,13 @@ function VIS.event(kind, a, b, c)
     hit("tom", v)
     if i then deliver(i, "tom", v, v, hz) end
   elseif kind == "perc" then
-    local k = clamp(math.floor(num(a, 1)), 1, 10)
+    local k = clamp(math.floor(num(a, 1)), 1, 17)
     local v = vel(b)
     hit("perc", v)
     if k == 5 then hit("acid", v) end
     if i then deliver(i, "perc", v, k, v) end
   elseif kind == "tick" then
-    local k = clamp(math.floor(num(a, 1)), 1, 6)
+    local k = clamp(math.floor(num(a, 1)), 1, 8)
     hit("tick", 0.7)
     if i then deliver(i, "tick", 0.7, k) end
   elseif kind == "brk" then
@@ -766,7 +779,11 @@ function VIS.draw(i, S, dt)
   else
     xf = math.min(1, xf + DT / 0.5)
   end
+  react = clamp(opt("vis_react", 5) / 5, 0, 2)
+  for k = 1, 4 do AV[k] = clamp(A[k] * react, 0, 1) end
   B = opt("vis_brightness", 10) / 10 * ease(xf)
+  -- the picture breathes with the output level
+  B = B * (1 - 0.2 * math.min(react, 1.5) * (1 - A[AMP]))
   B = B * gl_dim
   sync(S)
   ops = 0

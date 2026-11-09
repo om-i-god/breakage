@@ -15,6 +15,13 @@
 -- current step; the cells hold the last bars, so the grid shows the groove.
 -- the running light walks the step keys, a ratchet splits the current cell,
 -- chaos throws ghost lights and shifts the rows, energy lights the panel.
+--
+-- the ears: view 1, the lows lift the beams and the LED strip, the mids
+-- brighten the beams and get the crowd's hands up, the highs throw the
+-- mirror ball's spots over the wall and thicken the haze; view 2, the lows
+-- backlight the step keys and heave the output meter, the mids light the
+-- grid's column dividers, the highs flicker the LEDs, the knob caps and the
+-- key strip between the kicks.
 return function(K)
   local M = {}
   local put, line, A, clamp = K.put, K.line, K.A, K.clamp
@@ -156,6 +163,11 @@ return function(K)
       for i, P in ipairs(PPL[ri]) do
         local h = hands[ri][i]
         hands[ri][i] = h * math.exp(-K.DT / 0.4)
+        -- the body of the mix gets the hands up, each dancer on their own swing
+        local mid = A[K.MID]
+        if mid > 0.1 and K.hash(i + ri * 31, 5) < 0.25 + mid * 0.6 then
+          h = math.max(h, mid * (0.55 + 0.45 * math.sin(K.T * 2.1 + P.ph * 3)))
+        end
         local show = P.on < 0.6 + e * 0.4 or ri == 3
         if show then
           local sway = math.sin(K.T * (0.5 + kl * 0.7) + P.ph) * (0.8 + kl * 1.6)
@@ -218,7 +230,7 @@ return function(K)
 
   local function draw1(S)
     local T, DT, e, c = K.T, K.DT, K.energy, K.chaos
-    local lo, hi, kl = A[K.LO], A[K.HI], K.kickless
+    local lo, hi, kl, mid = A[K.LO], A[K.HI], K.kickless, A[K.MID]
     local playing = K.playing and 1 or 0
     local nh = crowd(e, c, kl)
 
@@ -233,7 +245,16 @@ return function(K)
     put(2 + lo * 4 + K.env.kick * 3, 50, 37, 3, 1)
     put(2 + hi * 4 + K.env.hat * 3, 75, 37, 3, 1)
     -- the haze
-    K.haze(0, 12, 128, 42, 0.18 + 0.22 * e + 0.15 * kl + 0.15 * hi, 1, T * 4)
+    K.haze(0, 12, 128, 42, 0.12 + 0.22 * e + 0.15 * kl + 0.3 * hi, 1, T * 4)
+    -- the highs: the mirror ball's spots crawling over the back wall
+    if hi > 0.05 then
+      for k = 0, 21 do
+        local gx = (K.hash(k, 41) * 140 + T * (4 + K.hash(k, 42) * 3)) % 132 - 2
+        local gy = 13 + K.hash(k, 43) * 22
+        local tw = 0.5 + 0.5 * math.sin(T * (5 + K.hash(k, 44) * 6) + k)
+        put(hi * (2 + tw * 4), gx, gy, 2, 1)
+      end
+    end
 
     -- the rig: the truss, the fixtures and the blinders
     line(2, 0, 3, 127, 3)
@@ -259,7 +280,7 @@ return function(K)
       tgt = tgt + (64 - tgt) * conv
       local ex = tgt
       local lift = (kl * 0.6 + (1 - kup) * 0.15) -- kickless: beams tilt up
-      local lv = (1.6 + e * 0.8 + kup * 2.6 + flare * 2 + bls * 2) * (on and 1 or 0.45) * (1 - kl * 0.35)
+      local lv = (1 + mid * 2.6 + e * 0.8 + kup * 2.6 + flare * 2 + bls * 2) * (on and 1 or 0.45) * (1 - kl * 0.35)
       if chase > 0 then
         local cu = (K.T - chase_t) / 0.4
         if cu < 1 and math.floor(cu * chase) % NF == i - 1 then lv = lv + 6 end
@@ -333,7 +354,9 @@ return function(K)
 
   local function draw2(S)
     local T, DT, e, c = K.T, K.DT, K.energy, K.chaos
-    local lo, hi, kl = A[K.LO], A[K.HI], K.kickless
+    local lo, hi, kl, mid = A[K.LO], A[K.HI], K.kickless, A[K.MID]
+    -- the highs glitter between the kicks (the hats' place)
+    local hiq = hi * (1 - K.env.kick) ^ 2
     local playing = K.playing
     local cs = cur_step()
     local sf = K.num(K.stepf, 0)
@@ -345,14 +368,15 @@ return function(K)
     line(1, 1, 62, 126, 62)
     line(1.5, 1, 1, 1, 62)
     line(1.5, 126, 1, 126, 62)
-    line(1, 3, 14, 124, 14)
-    line(1, 3, 43, 124, 43)
+    K.dashes(1, 14, 2, 4, 0, 3, 125)              -- silkscreened dividers
+    K.dashes(1, 43, 2, 4, 0, 3, 125)
 
     -- the knobs: one per voice, the pointer kicked by its hits; tempo lamp
     local kn = {pads[1], pads[2], pads[3], pads[4], pads[5], hi, lo, e}
     for k = 1, 8 do
       local kx, ky = 10 + (k - 1) * 13, 8
-      K.ring(1.2 + e * 0.5, kx, ky, 3.5, 10)
+      -- (the knob caps catch the highs)
+      K.ring(1.2 + e * 0.5 + hiq * 3 * (0.5 + 0.5 * math.sin(T * 4 + k * 1.3)), kx, ky, 3.5, 10)
       local a = math.pi * 0.75 + (0.3 + 0.6 * kn[k] + 0.08 * math.sin(T * 0.3 + k)) * math.pi * 1.5
       line(2.5 + kn[k] * 5, kx, ky, kx + math.cos(a) * 3.5, ky + math.sin(a) * 3.5)
     end
@@ -387,6 +411,13 @@ return function(K)
         end
       end
     end
+    -- the mids: the grid's backlight glowing up between the columns
+    if mid > 0.05 then
+      for s = 0, 15 do
+        local x = GX + s * CW + 5
+        line(mid * ((s % 4 == 3) and 2.6 or 1.6), x, GY0 - 1, x, GY0 + NV * RH - 2)
+      end
+    end
     -- the playhead: brackets over the current column; a ratchet splits it
     local hx = GX + (sf % 16) * CW
     line(4 + e * 3, hx - 1, GY0 - 2, hx + 5, GY0 - 2)
@@ -413,9 +444,11 @@ return function(K)
       local d = math.abs(((sf % 16) - s + 8) % 16 - 8)
       if d < 1 then ledv = ledv + (1 - d) * (playing and 9 or 4) end
       if c > 0.5 and K.hash(s + math.floor(T * 4) * 16, 9) < c * 0.15 then ledv = ledv + 5 end
+      -- the highs flicker the LEDs, the lows backlight the keys
+      ledv = ledv + hiq * 3 * (0.5 + 0.5 * math.sin(T * 9 + s * 1.7))
       put(math.min(13, ledv), x + 1, 46, 3, 1)
-      put(1 + keyf[s] * 6 + e * 0.4, x, 50, 5, 6)
-      put(1.5 + grp + keyf[s] * 4, x, 49, 5, 1)
+      put(1 + keyf[s] * 6 + e * 0.4 + lo * 1.1, x, 50, 5, 6)
+      put(1.5 + grp + keyf[s] * 4 + hiq * 2, x, 49, 5, 1)
     end
     -- a fill: the LEDs ripple out from the playhead
     local fe = K.env.fill
@@ -427,6 +460,10 @@ return function(K)
       end
     end
     K.grain(function(u, w) return 4 + u * 120, 15 + w * 27 end, 1 + hi * 6, 2 + hi * 2)
+    -- the output meter along the foot: an LED chain the lows push along
+    local ml = math.floor((lo * 0.7 + A[K.AMP] * 0.3) * 30)
+    for k = 0, ml - 1 do put(1 + (k > 24 and 2 or 0), 4 + k * 4, 58, 1, 3) end
+    put(2 + lo * 4, 4 + ml * 4, 58, 1, 3)
   end
 
   function M.draw(S)

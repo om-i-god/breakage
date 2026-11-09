@@ -5,7 +5,8 @@
 -- row 1   phrase position (8-bar blocks marked); a fill coming lights the end
 -- row 2   energy: lit to the level; press to pull it there
 -- row 3   chaos: lit to the level; press to set it
--- row 4   kits 1-13 (pending kit blinks)
+-- row 4   kits, 15 to a page; key 16 flips the page (lit by page). the
+--         page follows the kit when it changes elsewhere. pending kit blinks
 -- row 5   parts K S C H R P T G B: brightness = how loud; press = mute
 -- row 6   break pads: the 16 slices of the current bar of the loop; press to
 --         fire one (lit when a break is loaded)
@@ -21,6 +22,9 @@ GU.PARTS = {"kick", "snare", "clap", "hats", "ride", "perc", "toms", "ticks", "b
 local g, A
 local flash = {}
 local NK = #include("lib/kits").list
+local PER = 15                       -- kits per grid page (key 16 flips)
+local kpage, seen_kit = 1, nil
+local function kit_at(x) return (kpage - 1) * PER + x end
 
 function GU.init(actions)
   A = actions
@@ -40,7 +44,11 @@ function GU.key(x, y, z)
   elseif y == 3 then
     A.set_chaos((x - 1) / (w - 1))
   elseif y == 4 then
-    if x <= NK then A.set_kit(x) end
+    if x == 16 then
+      kpage = kpage % math.ceil(NK / PER) + 1
+    elseif x <= PER and kit_at(x) <= NK then
+      A.set_kit(kit_at(x))
+    end
   elseif y == 5 then
     local k = GU.PARTS[x]
     if k then A.toggle_mute(k) end
@@ -83,12 +91,17 @@ function GU.redraw()
 
   -- kits
   local blink = math.floor(now * 4) % 2 == 0
-  for x = 1, NK do
-    local lvl = 2
-    if x == S.kit then lvl = 13 end
-    if x == S.kit_pending then lvl = blink and 15 or 4 end
-    g:led(x, 4, lvl)
+  if S.kit ~= seen_kit then seen_kit = S.kit; kpage = (S.kit - 1) // PER + 1 end
+  for x = 1, PER do
+    local k = kit_at(x)
+    if k <= NK then
+      local lvl = 2
+      if k == S.kit then lvl = 13 end
+      if k == S.kit_pending then lvl = blink and 15 or 4 end
+      g:led(x, 4, lvl)
+    end
   end
+  g:led(16, 4, kpage == 1 and 3 or 8)
 
   -- parts
   for x, k in ipairs(GU.PARTS) do

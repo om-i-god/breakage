@@ -25,11 +25,27 @@
 --   samba    surdo kick on every beat, tambourine 16ths, rim ghosts
 --   beguine  a lilting kick, bongos, rim on the "and"s
 --   rock     a slow-rock preset: kick 1, 9 and 11, snare 2 and 4
+--
+-- and the rest:
+--   minimal  four on the floor with a 3-3-2 rim, offbeat hats + 16ths
+--   halfstep dubstep: kick 1 (and a push), the snare on 3, sparse hats
+--   breakcore  a dense amen skeleton, kicks everywhere
+--   glitch   euclidean scatters for kick, snare and hats, rotated per phrase
+--   march    a toy march: oom-pah kick, snare on 2 and 4 with a flam, music box
+--   boombap  a swung hip-hop beat, crackle on the one
+--   tribal   rolling kick, talking drum, logs and congas
+--   garage   2-step: a skipping kick, snare on 2 and 4, shuffled hats
+--   footwork juke kicks in threes, a clap, vox chops
+--   trap     a long 808, the snare on 3, 8th hats with fast rolls
+--   disco    four, snare 2 and 4, open hats on the offbeats, tambourine
+--   motorik  a steady krautrock beat, straight 8ths, syntoms into the bar
 
 local G = {}
 
 G.FAMILIES = {"four", "dub", "acid", "electro", "broken", "brk", "jungle", "half", "rave",
-  "bossa", "rhumba", "chacha", "samba", "beguine", "rock"}
+  "bossa", "rhumba", "chacha", "samba", "beguine", "rock",
+  "minimal", "halfstep", "breakcore", "glitch", "march", "boombap", "tribal", "garage",
+  "footwork", "trap", "disco", "motorik"}
 
 local function clamp(v, lo, hi) return math.max(lo, math.min(hi, v)) end
 local function chance(p) return math.random() < p end
@@ -155,7 +171,8 @@ SKEL.rave = function(c)
 end
 
 -- the presets' percussion: {step = {role, vel}}; roles map to perc kinds
-local ROLE = {conga = 1, bongo = 2, cowbell = 3, clave = 4, guiro = 9, tamb = 10}
+local ROLE = {conga = 1, bongo = 2, cowbell = 3, clave = 4, log = 7, guiro = 9, tamb = 10,
+  musicbox = 11, squeak = 12, talk = 13, crackle = 15, vox = 16, syntom = 17}
 local function lane(t)
   local p = {}
   for role, steps in pairs(t) do
@@ -211,7 +228,116 @@ SKEL.rock = function(c)
   return k, s, h, lane({guiro = {{15, 0.5}}})
 end
 
+SKEL.minimal = function(c)
+  local k = set(zeros(), {1, 5, 9, 13}, 1)
+  local s = set(zeros(), G.pick({{4, 7, 12, 15}, {4, 10, 15}, {7, 12, 14}}), 0.55)
+  local h = zeros()
+  for i = 1, 16 do h[i] = (i % 4 == 3) and 0.85 or (i % 2 == 0 and 0.3 or 0.2) end
+  return k, s, h
+end
+
+SKEL.halfstep = function(c)
+  local k = set(zeros(), G.pick({{1}, {1, 11}, {1, 8, 11}, {1, 4}, {1, 15}}), 1)
+  local s = set(zeros(), {9}, 1)
+  local h = set(zeros(), G.pick({{3, 7, 12, 15}, {3, 6, 11, 14}, {5, 7, 13, 15}}), 0.55)
+  return k, s, h
+end
+
+SKEL.breakcore = function(c)
+  local k = set(zeros(), {1, 3, 6, 9, 11, 12, 14}, 1)
+  local s = set(zeros(), {5, 13}, 1)
+  set(s, {8, 10, 15, 16}, 0.6)
+  local h = zeros()
+  for i = 1, 16 do h[i] = (i % 2 == 1) and 0.7 or 0.4 end
+  return k, s, h
+end
+
+SKEL.glitch = function(c)
+  local k = G.euclid(G.pick({3, 5, 5, 7}), 16, math.random(0, 15))
+  k[1] = 1
+  local s, h = zeros(), zeros()
+  local se = G.euclid(G.pick({2, 3, 3}), 16, math.random(0, 15))
+  for i = 2, 16 do if se[i] == 1 and k[i] == 0 then s[i] = 0.9 end end
+  local he = G.euclid(G.pick({5, 7, 9, 11}), 16, math.random(0, 15))
+  for i = 1, 16 do h[i] = he[i] * (0.35 + 0.3 * (i % 3) / 2) end
+  return k, s, h
+end
+
+SKEL.march = function(c)
+  local k = set(zeros(), {1, 9}, 1)
+  local s = set(zeros(), {5, 13}, 0.9)
+  set(s, {15, 16}, 0.45)
+  local h = set(zeros(), {3, 7, 11, 15}, 0.6)
+  return k, s, h, lane({musicbox = {{1, 0.7}, {5, 0.5}, {9, 0.7}, {13, 0.5}, {11, 0.4}}, squeak = {{16, 0.5}}})
+end
+
+SKEL.boombap = function(c)
+  local k = set(zeros(), G.pick({{1, 11}, {1, 8, 11}, {1, 4, 11}, {1, 11, 12}}), 1)
+  local s = set(zeros(), {5, 13}, 1)
+  local h = zeros()
+  for i = 1, 16 do h[i] = (i % 2 == 1) and 0.6 or 0.2 end
+  return k, s, h, lane({crackle = {{1, 0.6}, {9, 0.4}}})
+end
+
+SKEL.tribal = function(c)
+  local k = set(zeros(), G.pick({{1, 7, 9, 15}, {1, 4, 9, 12}, {1, 7, 11}}), 1)
+  local s = set(zeros(), {5, 13}, 0.6)
+  set(s, {11}, 0.4)
+  local h = set(zeros(), {1, 5, 9, 13}, 0.4)
+  return k, s, h, lane({talk = {{3, 0.7}, {8, 0.8}, {12, 0.6}, {16, 0.8}}, log = {{6, 0.6}, {14, 0.6}},
+    conga = {{4, 0.5}, {10, 0.6}}})
+end
+
+SKEL.garage = function(c)
+  local k = set(zeros(), G.pick({{1, 11}, {1, 8, 11}, {1, 10}, {1, 4, 11}}), 1)
+  local s = set(zeros(), {5, 13}, 1)
+  set(s, {G.pick({8, 15, 16})}, 0.35)
+  local h = zeros()
+  for i = 1, 16 do h[i] = (i % 2 == 1) and 0.7 or 0.3 end
+  return k, s, h
+end
+
+SKEL.footwork = function(c)
+  local k = set(zeros(), G.pick({{1, 4, 7, 11, 14}, {1, 4, 8, 11}, {1, 7, 10, 13, 16}, {1, 4, 7, 10}}), 1)
+  local s = set(zeros(), G.pick({{9}, {5, 13}, {13}}), 1)
+  local h = set(zeros(), {3, 7, 11, 15}, 0.5)
+  return k, s, h, lane({vox = {{G.pick({2, 3}), 0.6}, {G.pick({10, 12}), 0.7}}})
+end
+
+SKEL.trap = function(c)
+  local k = set(zeros(), G.pick({{1, 8, 11}, {1, 11}, {1, 4, 11, 15}, {1, 10}}), 1)
+  local s = set(zeros(), {9}, 1)
+  local h = set(zeros(), {1, 3, 5, 7, 9, 11, 13, 15}, 0.7)
+  -- hat rolls: a step or two of the bar split into 3, 4 or 6
+  local rolls = {}
+  for _ = 1, G.pick({1, 2, 2}) do
+    local st = G.pick({8, 12, 14, 15, 16, 4})
+    rolls[st] = G.pick({3, 4, 4, 6})
+    h[st] = math.max(h[st], 0.6)
+  end
+  return k, s, h, nil, {rolls = rolls}
+end
+
+SKEL.disco = function(c)
+  local k = set(zeros(), {1, 5, 9, 13}, 1)
+  local s = set(zeros(), {5, 13}, 1)
+  local h = zeros()
+  for i = 1, 16 do h[i] = (i % 2 == 1) and 0.5 or 0.3 end
+  return k, s, h, lane({tamb = {{2, 0.5}, {4, 0.7}, {6, 0.5}, {8, 0.7}, {10, 0.5}, {12, 0.7}, {14, 0.5}, {16, 0.7}},
+    conga = {{7, 0.6}, {15, 0.6}}}), {open = {3, 7, 11, 15}}
+end
+
+SKEL.motorik = function(c)
+  local k = set(zeros(), G.pick({{1, 9}, {1, 7, 9}, {1, 4, 9, 12}}), 1)
+  local s = set(zeros(), {5, 13}, 0.9)
+  local h = set(zeros(), {1, 3, 5, 7, 9, 11, 13, 15}, 0.6)
+  return k, s, h, lane({syntom = {{15, 0.6}, {16, 0.7}}})
+end
+
 local PRESET = {bossa = true, rhumba = true, chacha = true, samba = true, beguine = true, rock = true}
+-- families that keep a straight kick: no ghost kicks, no displacement
+local STRAIGHT = {four = true, acid = true, rave = true, minimal = true, disco = true, motorik = true,
+  march = true, trap = true}
 
 ------------------------------------------------------------------------
 -- the phrase's material
@@ -222,17 +348,16 @@ function G.build(kit, chaos, family)
   family = family or G.wpick(kit.grooves)
   -- high chaos leans every kit toward the break skeleton
   if family ~= "brk" and family ~= "jungle" and chance(clamp((chaos - 0.55) * 1.2, 0, 0.7)) then family = "brk" end
-  local k, s, h, plane = SKEL[family](chaos)
+  local k, s, h, plane, extra = SKEL[family](chaos)
   local P = {family = family, kick = k, snare = s, hats = h}
 
   -- ghost kicks / displacement grow with chaos
   for i = 2, 16 do
-    if k[i] == 0 and chance(0.04 + chaos * 0.18) and family ~= "four" and family ~= "acid" and family ~= "rave"
-      and not PRESET[family] then
+    if k[i] == 0 and chance(0.04 + chaos * 0.18) and not STRAIGHT[family] and not PRESET[family] then
       k[i] = 0.45 + math.random() * 0.3
     end
   end
-  if chaos > 0.35 and family ~= "four" and family ~= "rave" then
+  if chaos > 0.35 and not STRAIGHT[family] then
     -- push one kick a 16th early or late
     local hits = {}
     for i = 2, 16 do if k[i] > 0 then hits[#hits + 1] = i end end
@@ -273,6 +398,11 @@ function G.build(kit, chaos, family)
     for _, i in ipairs({3, 7, 11, 15}) do if chance(0.35) then P.open[i] = 1 end end
   end
   P.hat_shuffle = chance(0.35) and (0.15 + math.random() * 0.2) or 0
+  if extra and extra.open then
+    P.open = zeros()
+    for _, i in ipairs(extra.open) do P.open[i] = 1 end
+  end
+  P.rolls = extra and extra.rolls or nil
 
   -- ride, shaker: in for this phrase or not
   P.ride = chance(kit.ride) and set(zeros(), G.pick({{1, 5, 9, 13}, {3, 7, 11, 15},

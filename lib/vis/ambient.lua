@@ -15,6 +15,12 @@
 -- a ratchet runs a train of rays, a fill surges the whole sky. energy adds a
 -- second curtain and height, chaos tears and kinks them, kickless fades them
 -- to one faint band.
+--
+-- the ears: view 1, the lows warm the sun's glow and the water near the
+-- shore, the mids light the clouds' bellies and the tide lines, the highs
+-- shake the sun's path into glints; view 2, the lows brighten the curtains,
+-- the mids raise and light their rays, the highs shimmer the foot, the ray
+-- tips, the stars and the lake.
 return function(K)
   local M = {}
   local put, line, A, clamp = K.put, K.line, K.A, K.clamp
@@ -160,7 +166,7 @@ return function(K)
     end, SHORE)
     K.gradient(HY - 14, HY - 1, function(y)
       local u = (y - HY + 14) / 14
-      return u * (1.2 + e * 0.6 + sw_s * 0.6 + lo * 0.3) * (1 - sink * 0.4)
+      return u * (0.9 + e * 0.6 + sw_s * 0.6 + lo * 1.1) * (1 - sink * 0.4)
     end, SHORE, SX - 34, SX + 34)
     -- stars: a few always, more as the dusk deepens; percussion adds some
     for i = 0, 13 do
@@ -181,10 +187,12 @@ return function(K)
       local len = 26 + K.hash(k, 12) * 34
       local x = (K.hash(k, 13) * 200 + T * (0.6 + k * 0.25)) % (128 + len) - len
       local near = 1 - math.min(1, math.abs(x + len / 2 - SX) / 70)
-      local cl = 1.5 + near * (2 + sw_s) + e * 0.8 + k * 0.3
+      -- (the mids light the clouds' bellies)
+      local cl = 0.9 + near * (2 + sw_s) + e * 0.8 + k * 0.3 + mid * 2.2
       put(cl, x, cy, len, 1)
       put(cl * 0.6, x + 4, cy - 1, len - 10, 1)
       put(cl * 0.5, x + len * 0.3, cy + 1, len * 0.5, 1)
+      if mid > 0.3 then put(mid * 1.6, x + 2, cy + 1, len * 0.25, 1) end
     end
     -- birds on a fill
     for i = #birds, 1, -1 do
@@ -207,14 +215,14 @@ return function(K)
 
     -- the water: the sky's glow held near the horizon, slow tide lines
     -- running toward us (more with energy), a swell lifting them on the kick
-    K.gradient(HY + 1, HY + 6, function(y) return (0.9 - (y - HY) * 0.15) * (1 - sink * 0.4) + sw_s * 0.2 end)
+    K.gradient(HY + 1, HY + 6, function(y) return (0.6 + lo * 0.9 - (y - HY) * 0.15) * (1 - sink * 0.4) + sw_s * 0.2 end)
     local nt = math.floor(6 + e * 5)
     for k = 0, nt - 1 do
       local p = ((k + T * 0.06) % nt) / nt
       local y = HY + 3 + p * p * 30
       local len = 10 + p * 40
       local x = (K.hash(k, 21) * 128 + T * (0.5 + p) * (K.hash(k, 22) - 0.5) * 4) % 128
-      local l = (1 + p * 1.5 + sw_s * 1.5 * p) * (0.5 + 0.5 * math.sin(p * math.pi))
+      local l = (0.7 + mid * 1.4 + p * 1.5 + sw_s * 1.5 * p) * (0.5 + 0.5 * math.sin(p * math.pi))
       put(l, x - len / 2, y + sw_s * p * 1.2, len, 1)
       if p > 0.5 then put(l * 0.7, x + len * 0.4, y + 1, len * 0.3, 1) end
     end
@@ -261,14 +269,16 @@ return function(K)
 
   local function draw2(S)
     local T, DT, e, c = K.T, K.DT, K.energy, K.chaos
-    local lo, hi, kl = A[K.LO], A[K.HI], K.kickless
-    local inten = math.min(1.25, (0.5 + e * 0.3 + sw_s * 0.4 + surge * 0.5 + lo * 0.15) * (1 - kl * 0.45))
+    local lo, hi, kl, mid = A[K.LO], A[K.HI], K.kickless, A[K.MID]
+    -- the highs glitter between the kicks (the hats' place)
+    local hiq = hi * (1 - K.env.kick) ^ 3
+    local inten = math.min(1.25, (0.45 + e * 0.3 + sw_s * 0.4 + surge * 0.5 + lo * 0.15) * (1 - kl * 0.45))
 
     -- stars
     for i = 0, 23 do
       local x, y = math.floor(K.hash(i, 31) * 127), 1 + math.floor(K.hash(i, 32) * 30)
       local tw = 0.5 + 0.5 * math.sin(T * (0.4 + K.hash(i, 33)) + i * 2.3)
-      put(0.8 + tw * (0.8 + kl * 1.5) + glint * 2 * tw, x, y, 1, 1)
+      put(0.8 + tw * (0.8 + kl * 1.5) + glint * 2 * tw + hiq * 3 * (0.5 + 0.5 * math.sin(T * (4 + i % 5) + i)), x, y, 1, 1)
     end
     for i = #stars, 1, -1 do
       local s = stars[i]
@@ -315,10 +325,15 @@ return function(K)
           -- rays above it, uneven, fading up in two steps
           local hx = K.hash(x, 51)
           if x % 2 == 0 or hx < 0.15 then
-            local h = (6 + 20 * hx * (0.4 + 0.6 * (0.5 + 0.5 * math.sin(x * 0.083 - T * 0.17)))) * (0.7 + 0.45 * inten)
+            -- (the mids raise and light the rays)
+            local h = (6 + 20 * hx * (0.4 + 0.6 * (0.5 + 0.5 * math.sin(x * 0.083 - T * 0.17)))) * (0.55 + 0.45 * inten + mid * 0.2 + lo * 0.35)
             local y0 = math.min(rr, yb - 3)
-            line(l * 0.5, x, y0 - h * 0.5, x, y0)
-            line(l * 0.28, x, y0 - h, x, y0 - h * 0.5 - 1)
+            line(l * (0.35 + mid * 0.25), x, y0 - h * 0.5, x, y0)
+            line(l * (0.18 + mid * 0.17), x, y0 - h, x, y0 - h * 0.5 - 1)
+            -- (and the highs shimmer at their tips)
+            if hiq > 0.05 and hx < 0.7 then
+              put(hiq * 4.5 * (0.5 + 0.5 * math.sin(T * 7 + x * 0.9)), x, y0 - h - 1, 1, 1)
+            end
           end
         end
       end
@@ -352,9 +367,9 @@ return function(K)
         local v = foot[x] * (0.55 - u * 0.35)
         local on = v > 1.6 and math.sin(x * 0.3 + y * 1.3 + T * 0.6) > -0.1
         if on and not run then run = x
-        elseif not on and run then put(1.4, run + off, y, x - run - 1, 1); run = nil end
+        elseif not on and run then put(1 + hiq * 2, run + off, y, x - run - 1, 1); run = nil end
       end
-      if run then put(1.4, run + off, y, 128 - run, 1) end
+      if run then put(1 + hiq * 2, run + off, y, 128 - run, 1) end
     end
     K.grain(function(u, v) return u * 128, 2 + v * 30 end, 1 + hi * 10 + glint * 20, 3 + hi * 4)
   end

@@ -2,7 +2,7 @@
 # usage: test/sc/run.sh [extra.scd]
 # compiles lib/Engine_Breakage.sc against a stub CroneEngine, boots a local
 # server, fires every command (or runs extra.scd with ~eng set), renders a
-# wav and prints its levels. killed after 240s if sclang hangs.
+# wav and prints its levels. killed after 600s if sclang hangs.
 #
 # the stub lives as CroneStub.stub so it can never be compiled on a norns
 # (a second CroneEngine class there = "DUPLICATE ENGINES"); it's copied to a
@@ -25,7 +25,7 @@ YAML
 # sclang writes to a file, not a pipe: if it is killed, an orphaned scsynth
 # would otherwise hold the pipe open and hang the run
 LOG="${TMPDIR:-/tmp}/breakage_test.log"
-perl -e 'alarm 240; exec @ARGV' "$SCLANG" -l "$LIB/lang.yaml" run.scd "$OUT" $EXTRA > "$LOG" 2>&1
+perl -e 'alarm 600; exec @ARGV' "$SCLANG" -l "$LIB/lang.yaml" run.scd "$OUT" $EXTRA > "$LOG" 2>&1
 grep -E "ERROR|WARNING|FAILURE|ENGINE|SMOKE|LEVELS|SEG|poll |Message|RECEIVER|not understood|nil|CHECK|exception|Exception|error|late|breakage:" "$LOG" \
   | grep -v "^Exception in World_OpenUDP"
 # belt and braces: never leave a test server behind

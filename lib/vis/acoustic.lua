@@ -179,7 +179,7 @@ return function(K)
 
   local function draw_rig(S)
     local T, DT, e, c = K.T, K.DT, K.energy, K.chaos
-    local lo, hi = A[K.LO], A[K.HI]
+    local lo, hi, md = A[K.LO], A[K.HI], A[K.MID]
     local kl = K.kickless
     lamp = lamp * math.exp(-DT / 1.5)
     board = board * math.exp(-DT / 0.2)
@@ -234,8 +234,9 @@ return function(K)
       local hot = (age >= 0 and age < 0.4) and (1 - age / 0.4) * a.v or 0
       if k == "kick" then
         -- the kick from the front: a shell, a hoop, a port in the head
-        K.disc(1.2 + hot * 1.5 + lo * 0.5, x, y, I.r)
-        K.ring(3 + e * 1.5 + hot * 4, x, y, I.r, 22)
+        -- the sub (lo) glows in the kick's head
+        K.disc(1.2 + hot * 1.5 + lo * 2.2, x, y, I.r)
+        K.ring(3 + e * 1.5 + hot * 4 + lo * 1.5, x, y, I.r, 22)
         K.ring(2, x, y, I.r - 2, 20)
         K.ring(2 + hot * 2, x + 5, y + 5, 2.5, 8)
         line(3, x - I.r + 2, y + I.r - 2, x - I.r - 3, FLOOR)
@@ -243,7 +244,7 @@ return function(K)
       elseif k == "wood" then
         for b = -1, 1, 2 do
           local bx = x + b * 4
-          put(1.5 + hot * 4 + knock * 2, bx - 3, y - 2, 6, 4)
+          put(1.5 + hot * 4 + knock * 2 + md * 2.5, bx - 3, y - 2, 6, 4)
           line(3 + hot * 3, bx - 3, y - 2, bx + 3, y - 2)
         end
         line(2, x - 8, y + 3, x + 8, y + 3)
@@ -257,21 +258,24 @@ return function(K)
         line(3.5 + hot * 5, bx - 3, y - 6, bx - 6, y + 4)
         line(3.5 + hot * 5, bx + 3, y - 6, bx + 6, y + 4)
         line(4 + hot * 6, bx - 6, y + 4, bx + 6, y + 4)
-        put(1.5 + hot * 3, bx - 4, y - 3, 9, 6)
+        put(1.5 + hot * 3 + md * 2.5, bx - 4, y - 3, 9, 6)
       elseif k == "tines" then
         -- a comb of tines on a block (the plinks)
         put(2, x - 8, y + 4, 17, 3)
         for t = 0, 4 do
           local tx = x - 6 + t * 3
-          local vib = hot * 1.5 * math.sin(age * 70 + t)
-          line(2.5 + hot * 7, tx, y + 4, tx + vib, y - 4 - t)
+          -- the air (hi) keeps the tines singing
+          local vib = (hot * 1.5 + hi * 0.8) * math.sin(age * 70 + t + T * 9)
+          line(2.5 + hot * 7 + hi * 4, tx, y + 4, tx + vib, y - 4 - t)
         end
       else
         -- a drum seen from a little above: a shell under an elliptic head
         local sq = I.sq
         local h = (k == "hat") and 1 or math.floor(I.r * 0.9)
-        if hot > 0.1 then K.disc(1 + hot * 2, x, y, I.r * 0.6) end
-        K.ring(2.5 + e * 1.5 + hot * 6 + hi * (k == "hat" and 2 or 0), x, y, I.r, 16, 0, K.TAU, sq)
+        -- the body of the mix (mid) warms the heads
+        local hb = hot * 2 + (k == "hat" and hi * 1.5 or md * 1.8)
+        if hb > 0.25 then K.disc(1 + hb, x, y, I.r * 0.6) end
+        K.ring(2.5 + e * 1.5 + hot * 6 + (k == "hat" and hi * 3 or md * 2.5), x, y, I.r, 16, 0, K.TAU, sq)
         line(2.5, x - I.r, y, x - I.r, y + h)
         line(2.5, x + I.r, y, x + I.r, y + h)
         K.ring(2.5, x, y + h, I.r, 10, 0, math.pi, sq)
@@ -345,7 +349,7 @@ return function(K)
   ---------------------------------------------------------------- view 2 draw
   local function draw_piano(S)
     local T, DT, e, c = K.T, K.DT, K.energy, K.chaos
-    local lo, hi = A[K.LO], A[K.HI]
+    local lo, hi, md, am = A[K.LO], A[K.HI], A[K.MID], A[K.AMP]
     local kl = K.kickless
     board = board * math.exp(-DT / 0.25)
     knock = knock * math.exp(-DT / 0.2)
@@ -363,14 +367,15 @@ return function(K)
     line(3 + knock * 7, px_, py_, 127, py_ + 8)
     line(3 + knock * 7, 2, 0, 2, 63)
     -- the iron plate: struts and its holes out over the treble
-    local pl = 1.5 + e * 0.5 + board * 2
+    local pl = 1.5 + e * 0.5 + board * 2 + am * 1.2    -- the plate lit by the level
     for _, h in ipairs({{88, 9, 6}, {108, 12, 7}, {121, 30, 5}, {68, 5, 4}}) do
       K.disc(1, h[1], h[2], h[3])
       K.ring(pl + 1, h[1], h[2], h[3], 14)
     end
-    K.dashes(1.5 + e * 0.5, SBOT + 3, 5, 7, 2, 4, 125)
+    -- the pins along the bottom glint in the air (hi)
+    K.dashes(1.5 + e * 0.5 + hi * (1 + 0.5 * math.sin(T * 5)), SBOT + 3, 5, 7, 2, 4, 125)
     -- the soundboard: grain running between the strings, thumping on the kick
-    local bl = math.min(3, 0.7 + board * 1.8 + lo * 0.5)
+    local bl = math.min(3, 0.7 + board * 1.8 + lo * 0.6)
     for i = 0, NS - 2 do
       local x = s_x(i) + 3 + (i % 2)
       line(bl * (0.7 + 0.3 * (i % 3) / 2), x, SBOT - 1, x, s_top(i + 1) + 2)
@@ -384,11 +389,16 @@ return function(K)
       rattle[i] = rattle[i] * math.exp(-DT / 0.2)
       local w = 9 + i * 0.6                   -- the treble wobbles faster
       ph[i] = ph[i] + w * K.DTS
-      local a = math.min(3.5, amp[i] * 3.5 + sym * (0.5 + 0.5 * math.sin(T * 0.7 + i)))
+      -- each register trembles with its own band: lo the bass, mid the middle
+      local reg = i / (NS - 1)
+      local band = lo * math.max(0, 1 - reg * 3) + md * math.max(0, 1 - math.abs(reg - 0.5) * 3.5)
+      local a = math.min(3.5, amp[i] * 3.5 + sym * (0.5 + 0.5 * math.sin(T * 0.7 + i)) + band * 0.25)
       local m = mode[i] + (c > 0.6 and 1 or 0)
       local bolt = BOLTS[i]
-      local lv = 1.2 + e * 0.4 + math.min(4.5, a * 1.6) + hi * (i >= NS - 3 and 1.5 or 0)
+      local lv = 1.2 + e * 0.4 + math.min(3.8, a * 1.4)
       if a < 0.4 then
+        -- a string at rest glows with its band; the air (hi) shimmers the treble
+        lv = lv + band * 2.4 + hi * math.max(0, reg * 2.5 - 1.1) * (2 + 0.6 * math.sin(T * 7 + i * 2))
         line(lv, x0, SBOT, x0, ytop)
       else
         local px2, py2
@@ -417,12 +427,15 @@ return function(K)
       end
       -- the damper: lifted while the string rings
       local dl = clamp(amp[i] * 3, 0, 1)
-      put(1.5 + dl * 2, x0 - 2, SBOT - 7 - dl * 3, 5, 2)
+      -- the felts catch the body of the mix (mid)
+      put(1.5 + dl * 2 + md * (1.2 + 0.4 * math.sin(T * 2 + i * 0.7)), x0 - 2, SBOT - 7 - dl * 3, 5, 2)
       -- the hammer under it: up on the strike, then back down
       local hu = math.max(0, 1 - (K.T - ham[i]) / 0.12)
       put(1.5 + hu * 7, x0 - 1, SBOT + 4 - hu * 3, 3, 3)
       -- the key, dipping
-      put(1 + hu * 3, x0 - 3, 61 + (hu > 0.3 and 1 or 0), 6, 2)
+      -- the keys light by register: lo the bass, mid the middle, hi the treble
+      local kb = band * 0.9 + hi * math.max(0, reg * 2.5 - 1.1) * 0.9
+      put(1 + hu * 3 + kb, x0 - 3, 61 + (hu > 0.3 and 1 or 0), 6, 2)
     end
     -- kickless: the bass strings rest under felt
     if kl > 0.3 then put(1.5 * kl, s_x(0) - 3, SBOT - 18, s_x(3) - s_x(0) + 6, 2) end
@@ -434,7 +447,7 @@ return function(K)
       local y = SBOT - 2 - ((T * 5 + k * 23) % math.max(1, L - 4))
       put(2.5 + hi * 3, s_x(i), y, 1, 2)
     end
-    K.grain(function(uu, vv) return 6 + uu * 116, 6 + vv * 46 end, 2 + e * 6 + hi * 8, 3 + hi * 3)
+    K.grain(function(uu, vv) return 6 + uu * 116, 6 + vv * 46 end, 2 + e * 6 + hi * 8, 3 + hi * 4)
   end
 
   function M.draw(S)

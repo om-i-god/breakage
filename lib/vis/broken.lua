@@ -18,6 +18,12 @@
 -- them all outward, hats glint on the edges, chaos throws them further and
 -- flips some; a phrase edge (and a kickless stretch, slowly) pulls the
 -- mirror back toward whole.
+--
+-- the ears: view 1, the lows raise the sodium glow and pool the street
+-- lamps, the mids switch on the city's windows and ring through the cracks,
+-- the highs glitter the stars, the glare and the light along the fractures;
+-- view 2, the lows swell and light the moon, the mids light
+-- the towers, the highs glitter on the water and the shard edges.
 return function(K)
   local M = {}
   local put, line, A, clamp = K.put, K.line, K.A, K.clamp
@@ -179,8 +185,10 @@ return function(K)
     end
   end
 
+  local moonlo = 0                     -- the lows, eased for the moon (view 2)
   function M.init()
     cracks, shards, glints, cars, drips, pending = {}, {}, {}, {}, {}, {}
+    moonlo = 0
     shake, heal_t = 0, -9
     wlit = {}
     TRI = {}
@@ -277,7 +285,7 @@ return function(K)
   ----------------------------------------------------------------------
   local function draw_pane(S)
     local T, DT, e, c = K.T, K.DT, K.energy, K.chaos
-    local lo, hi = A[K.LO], A[K.HI]
+    local lo, hi, mid = A[K.LO], A[K.HI], A[K.MID]
     local kl = K.kickless
     local dim = 1 - kl * 0.35
     for i = #pending, 1, -1 do
@@ -286,7 +294,7 @@ return function(K)
     end
 
     -- the sky glow behind the far blocks
-    local glow = (0.5 + e * 0.6 + lo * 0.4 + K.duck * 0.3) * dim
+    local glow = (0.35 + e * 0.6 + lo * 0.9 + K.duck * 0.3) * dim
     -- (a stipple that thickens toward the horizon)
     for y = 14, 39, 2 do
       local u = (y - 14) / 25
@@ -303,6 +311,13 @@ return function(K)
         end
       end
     end
+    -- the highs: stars glittering above the glow
+    for i = 0, 23 do
+      local x, y = math.floor(K.hash(i, 51) * 126), 2 + math.floor(K.hash(i, 52) * 16)
+      if y < FAR[x // 2] - 2 then
+        put(hi * (1.5 + 3 * (0.5 + 0.5 * math.sin(T * (3 + K.hash(i, 53) * 5) + i))) * dim, x, y, 1, 1)
+      end
+    end
     -- far blocks: dim mass down to the near blocks
     for col = 0, 63 do
       local top = math.floor(FAR[col])
@@ -316,7 +331,7 @@ return function(K)
       local top = FAR[x // 2]
       local y = math.floor(top + 2 + K.hash(i, 42) * 8)
       if y < NEAR[x // 2] - 1 then
-        put((1.5 + 1.5 * math.sin(T * (0.3 + K.hash(i, 43)) + i) + e) * dim + 0.5, x, y, 1, 1)
+        put((1 + 1.5 * math.sin(T * (0.3 + K.hash(i, 43)) + i) + e + hi * 2.5 * (0.5 + 0.5 * math.sin(T * 6 + i * 2))) * dim + 0.5, x, y, 1, 1)
       end
     end
     -- near blocks: black, their roofline edged, windows lit
@@ -324,11 +339,12 @@ return function(K)
       local top = NEAR[col]
       if top < GY then put(1.5 + lo * 0.8, col * 2, top, 2, 1) end
     end
-    local share = 0.18 + e * 0.35
+    -- the mids: more of the city's windows on, and warmer
+    local share = 0.1 + e * 0.35 + mid * 0.25
     for i = 1, NW do
       local W = WIN[i]
       local lv = 0
-      if W.on < share then lv = (2 + W.on * 6) * dim end
+      if W.on < share then lv = (1.5 + mid * 1.5 + W.on * 6) * dim end
       if W.tv then lv = math.max(lv, 1.5 + 1.2 * math.sin(T * 7 + i) * math.sin(T * 2.3 + i * 3)) end
       local L = wlit[i]
       if L then
@@ -343,7 +359,8 @@ return function(K)
     for x = 12, 127, 36 do
       put(1.5, x, GY - 8, 1, 8)
       put(3 + lo * 3 * dim, x - 1, GY - 9, 3, 1)
-      put(1 + lo, x - 3, GY + 1, 7, 1)
+      put(0.6 + lo * 2.5, x - 3 - lo * 3, GY + 1, 7 + lo * 6, 1)
+      put(lo * 1.6, x - 2 - lo * 2, GY + 2, 5 + lo * 4, 2)
     end
     local base = (T * (14 + e * 20)) % 160
     for k = 0, 1 + math.floor(e * 2) do
@@ -376,7 +393,7 @@ return function(K)
       -- the glare: a soft sheen in the upper glass, short broken strokes
       for q = 0, 3 do
         local y0 = 3 + q * 5
-        line(0.6 + hi * 0.8, gx + q * 3 + sx, y0 + 4 + sy, gx + q * 3 + 3 + sx, y0 + sy)
+        line(0.4 + hi * 3, gx + q * 3 + sx, y0 + 4 + sy, gx + q * 3 + 3 + sx, y0 + sy)
       end
       if c > 0.4 then line(1, gx + 30 + sx, 14 + sy, gx + 36 + sx, 4 + sy) end
     end
@@ -391,7 +408,7 @@ return function(K)
       else
         local grow = clamp(age / 0.3, 0, 1)
         local settle = math.exp(-age / 0.35)
-        local lv = (1.8 + C.v * 0.8 + hi * 0.8 + settle * (2.5 + 3 * C.v)) * (1 - gone)
+        local lv = (1.2 + C.v * 0.8 + hi * 0.8 + mid * 2 * clamp((age - 0.3) / 0.5, 0, 1) + settle * (2.5 + 3 * C.v)) * (1 - gone)
         local ext = grow * (1 - gone)
         local ox, oy = C.x + sx, C.y + sy
         for i = 1, #C.rays do
@@ -415,6 +432,15 @@ return function(K)
                 line((hole and lv * 1.1 or lv * 0.7) * (1 - gone), x1 + sx, y1 + sy, x2 + sx, y2 + sy)
               end
             end
+          end
+        end
+        -- the highs: light crawling out along each fracture
+        if hi > 0.05 and grow >= 1 then
+          for i = 1, #C.rays do
+            local R = C.rays[i]
+            local u = (T * (0.9 + (i % 3) * 0.3) + i * 0.37) % 1
+            local r = R.L * u * (1 - gone)
+            put(hi * 6 * math.sin(math.pi * u), ox + math.cos(R.a) * r - 1, oy + math.sin(R.a) * r, 2, 1)
           end
         end
         if age < 0.4 then put(4 + 6 * settle, ox - 1, oy - 1, 2, 2)
@@ -477,6 +503,7 @@ return function(K)
   local TOWERS = {{8, 30, 9}, {20, 25, 6}, {29, 33, 10}, {44, 27, 7}, {54, 34, 12}, {70, 29, 8}, {82, 33, 6},
     {93, 26, 9}, {106, 31, 7}, {116, 28, 12}}
   local HZ = 40
+  local tlv = 1                        -- the towers' level (the mids)
 
   -- the scene's lit runs on row y: calls emit(x0, x1, lv)
   local function scene_row(y, emit, mr, mlv, gl, hi)
@@ -492,10 +519,10 @@ return function(K)
     if y >= 25 and y < HZ then
       for i = 1, #TOWERS do
         local t = TOWERS[i]
-        if y >= t[2] then emit(t[1], t[1] + t[3], (y == t[2]) and 2.5 or 1) end
+        if y >= t[2] then emit(t[1], t[1] + t[3], (y == t[2]) and 1.5 + tlv or tlv) end
       end
     elseif y == HZ then
-      emit(0, 128, 3)
+      emit(0, 128, 2.2)
     elseif y > HZ then
             local w = 3 + (y - HZ) * 0.6
       local wob = math.sin(y * 0.35 + K.T * 2) * 1.5
@@ -505,13 +532,19 @@ return function(K)
 
   local function draw_mirror(S)
     local T, DT, e, c = K.T, K.DT, K.energy, K.chaos
-    local lo, hi = A[K.LO], A[K.HI]
+    local lo, hi, mid = A[K.LO], A[K.HI], A[K.MID]
+    -- the highs glitter between the kicks (the hats' place)
+    local hiq = hi * (1 - K.env.kick) ^ 3
     local kl = K.kickless
     if layout ~= built then build(layout); built = layout end
-    local mr = 5 + e * 2 + lo * 1
-    local mlv = 3 + e * 1.5 + lo * 1.5
-    local gl = 2 + hi * 2.5 + e * 1
+    -- the lows swell and light the moon; the mids light
+    -- the towers; the highs glitter on the water and the edges
+    moonlo = lo
+    local mr = 4.5 + e * 2 + moonlo * 1.6
+    local mlv = 2.5 + e * 1.2 + moonlo * 2.6
+    local gl = 1.6 + hiq * 2.5 + e * 1
     local kb = K.env.kick * (0.4 + 0.3 * e)
+    tlv = 0.85 + mid * 0.9
     -- shards ease toward their targets; kickless pulls them home
     for _, Tr in ipairs(TRI) do
       if kl > 0.3 then
@@ -555,12 +588,12 @@ return function(K)
             if a < xl then a = xl end
             if b > xr then b = xr end
             if b > a then put(lv, a, y, b - a, 1) end
-          end, mr, mlv, gl, hi)
+          end, mr, mlv, gl, hiq)
         end
       end
     end
     -- the cracks between the shards, lit where a shard was just knocked
-    local base = 1 + e * 0.15 + hi * 0.2
+    local base = 1 + e * 0.15 + hiq * 0.8
     for i = 1, 6 do
       for j = 1, 4 do
         if i < 6 and (j > 1 and j < 4) then line(base, VX[i][j], VY[i][j], VX[i + 1][j], VY[i + 1][j]) end
@@ -593,7 +626,8 @@ return function(K)
       end
     end
     -- the frame
-    put(1, 0, 0, 128, 1); put(1, 0, 63, 128, 1); put(1, 0, 0, 1, 64); put(1, 127, 0, 1, 64)
+    -- (beaded top and bottom: a gilt frame's moulding)
+    K.dashes(1, 0, 2, 4, 0); K.dashes(1, 63, 2, 4, 0); put(1, 0, 0, 1, 64); put(1, 127, 0, 1, 64)
     -- glints along the edges
     for i = #glints, 1, -1 do
       local G = glints[i]

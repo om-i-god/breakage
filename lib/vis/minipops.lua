@@ -301,7 +301,8 @@ return function(K)
     local T, e, c, kl = K.T, K.energy, K.chaos, K.kickless
     local lo, hi, mid = A[K.LO], A[K.HI], A[K.MID]
     local playing = K.playing
-    local lampg = (0.55 + 0.4 * e + 0.2 * lo + 0.03 * sin(T * 7.3) + 0.02 * sin(T * 11.9)) * (1 - 0.7 * kl)
+    local amp = A[K.AMP]
+    local lampg = (0.5 + 0.4 * e + 0.2 * lo + 0.03 * sin(T * 7.3) + 0.02 * sin(T * 11.9)) * (1 - 0.7 * kl)
 
     -- the wall: dim 70s stripes, the lamp's glow pooling round its shade,
     -- a night window that the moon finds when the kick goes away
@@ -326,7 +327,8 @@ return function(K)
     -- the lamp shade (its foot hidden behind the cabinet)
     for y = 1, 12 do
       local w = 7 + (y - 1) * 0.35
-      local l = 2.5 + lampg * 5.5 * (0.6 + y / 24)
+      -- the shade burns with the level of the mix (amp)
+      local l = 2.5 + lampg * 5.5 * (0.6 + y / 24) + amp * 2.2
       put(l, LCX - w, y, w * 2, 1)
     end
     line(3 + lampg * 7, LCX - 11, 12, LCX + 11, 12)
@@ -341,7 +343,7 @@ return function(K)
     cheek(BX1 - 7, 1.3 + lampg * 0.5)
 
     -- the panel frame
-    line(3 + lampg, PX0, PY0, PX1, PY0)
+    line(3 + lampg + hi * 2.5, PX0, PY0, PX1, PY0)
     line(1.5, PX0, PY0, PX0, PY1); line(1.5, PX1, PY0, PX1, PY1)
     line(1.5, PX0, PY1, PX1, PY1)
 
@@ -349,8 +351,10 @@ return function(K)
     for i = 1, 6 do
       local x, b = btn_x(i), bl[i]
       local dy = b > 0.5 and 1 or 0
-      put(1.2 + b * 6 + (i == btn and e * 1.5 or 0), x, 20 + dy, 10, 5)
-      line(3 + b * 7 + hi * 1.5, x, 19 + dy, x + 9, 19 + dy)
+      -- the body of the mix (mid) backlights the button faces; the air (hi)
+      -- glints along their chrome tops
+      put(1.2 + b * 6 + (i == btn and e * 1.5 or 0) + mid * (1.6 + 0.5 * sin(T * 2.2 + i)), x, 20 + dy, 10, 5)
+      line(3 + b * 7 + hi * (3 + sin(T * 6 + i * 1.9)), x, 19 + dy, x + 9, 19 + dy)
       if b > 0.3 then put(b * 2.5, x - 1, 26, 12, 1) end
       put(1.5, x + 3, 28, 4, 1)                   -- its label
     end
@@ -360,10 +364,12 @@ return function(K)
     for i = 1, NL do
       local x, v = lamp_x(i), lamp[i]
       local rp = rip_at(x + 2, 18, 93)
-      local vv = min(1, v + rp * 0.8 + (i == 3 and hi * 0.15 or 0) + (i == 1 and lo * 0.12 or 0))
+      -- each lamp idles on its band: bass drum lo, cymbal / maracas hi, the rest mid
+      local band = (i == 1 and lo * 0.3) or ((i == 3 or i == 8) and hi * 0.45) or mid * 0.35
+      local vv = min(1, v + rp * 0.8 + band)
       local split = c > 0.25 and floor(c * 2.5 * sin(T * 3.1 + i * 2.3) + 0.5) or 0
       local y = LY - floor(rp * 1.5 + 0.5)
-      if vv > 0.2 then
+      if v + rp * 0.8 > 0.2 then
         put(vv * (3.5 + e * 1.5), x - 1, y - 1, 6, 5)
         put(vv * 2.5, x, LY + 4, 4, 1)
       end
@@ -423,7 +429,8 @@ return function(K)
         local core = max(0, 1 - d / 11)
         local fall = max(0, 1 - d / 30)
         local rp = rip_at(cx, 18, 93)
-        local l = 1 + 0.5 * e + lo * 1.4 * fall + rim * (0.8 + kb * 3) + core * (kb * 5 + lo * 1.2 + mid * 0.6)
+        local l = 1 + 0.5 * e + lo * 1.4 * fall + rim * (0.8 + kb * 3) + core * (kb * 5 + lo * 1.2)
+          + mid * 1.6 * math.exp(-((d - 8) / 7) ^ 2)
           + rp * 4 + ratt * fall * 2
         local off = floor(side * kb * 1.8 * fall + 0.5) - floor(rp * 1.2 + 0.5)
           + floor(0.4 * sin(T * 1.3 + sx * 0.05) * fall + 0.5)
@@ -535,10 +542,11 @@ return function(K)
 
   local function draw2(S)
     local T, DT, DTS, e, c, kl = K.T, K.DT, K.DTS, K.energy, K.chaos, K.kickless
-    local lo, hi, mid = A[K.LO], A[K.HI], A[K.MID]
+    local lo, hi, mid, amp = A[K.LO], A[K.HI], A[K.MID], A[K.AMP]
     lava(DTS, e, c, kl)
-    local glow = (0.5 + 0.35 * e + lgs * 0.4 + heat * 0.2 + lo * 0.25) * (1 - 0.45 * kl)
-    local tvg = 0.55 + 0.25 * e + kl * 0.45 + tvf * 0.4
+    -- the room's lights rise with the level of the mix (amp)
+    local glow = (0.45 + 0.35 * e + lgs * 0.4 + heat * 0.2 + lo * 0.25 + amp * 0.12) * (1 - 0.45 * kl)
+    local tvg = 0.5 + 0.25 * e + kl * 0.45 + tvf * 0.4 + amp * 0.1
     local moon = 0.6 + kl * 0.9
 
     -- the wallpaper: dim 70s circles
@@ -553,7 +561,8 @@ return function(K)
       local x = 46 + k * 3
       local d = abs(x - 80) / 22
       local sway = floor(0.6 * sin(T * 0.5 + k * 0.4) + 0.5)
-      local l = 1 + moon * 2.4 * max(0, 1 - d) + hi * 0.5 * max(0, 1 - d)
+      -- the air (hi) glints on the slats
+      local l = 1 + moon * 2.4 * max(0, 1 - d) + hi * (1 + 0.8 * sin(T * 3 + k * 1.3)) * (0.4 + max(0, 1 - d))
       put(l, x + sway, 3, 1, 18)
     end
 
@@ -618,7 +627,7 @@ return function(K)
     put(2 + pb * 8, 80, 27, 2, 1)
     -- drawbar tabs
     for k = 1, 12 do
-      put(1.2 + K.hash(k, 61) * 1.5 + tab[k] * 8 + hi * 1.5, 45 + (k - 1) * 4.4, 32, 2, 2)
+      put(1.2 + K.hash(k, 61) * 1.5 + tab[k] * 8 + hi * 3, 45 + (k - 1) * 4.4, 32, 2, 2)
     end
     -- the manuals: upper then lower, keys pressed down and lit
     local function manual(keys, y, ox, base)
@@ -634,12 +643,13 @@ return function(K)
       end
       line(1.2, OX0 + 1, y + 3, OX1 - 1, y + 3)
     end
-    manual(keyU, 35, 0, 1.8 + glow * 0.3)
-    manual(keyL, 39, 1, 1.6 + glow * 0.3)
+    -- the body of the mix (mid) plays across the manuals as a slow swell
+    manual(keyU, 35, 0, 1.8 + glow * 0.3 + mid * 0.7)
+    manual(keyL, 39, 1, 1.6 + glow * 0.3 + mid * 0.6)
     -- the body: grain, the swell grille breathing with the kick
     line(1.5, 50, 47, 50, 56); line(1.5, 91, 47, 91, 56)
     local sw = sws * (1 - kl * 0.7)
-    put(1 + sw * 2.5 + lo * 1.2 + mid * 0.4, 58, 47, 26, 9)
+    put(1 + sw * 2.5 + lo * 1.2 + mid * 2.6, 58, 47, 26, 9)
     for x = 60, 82, 4 do line(0.8 + sw * 2 + lo, x, 48, x, 54) end
     -- bass pedals
     for i = 1, 9 do

@@ -177,7 +177,7 @@ return function(K)
   end
 
   local function band(r)
-    if r == 1 then return A[K.LO] elseif r == 2 or r == 3 or r == 6 or r == 8 then return A[K.MID] * 0.6 end
+    if r == 1 then return A[K.LO] elseif r == 2 or r == 3 or r == 6 or r == 8 then return A[K.MID] * 0.9 end
     return A[K.HI]
   end
 
@@ -230,6 +230,13 @@ return function(K)
       do
         local sx = X1 - math.floor((T * 24 + r * 9) % (X1 - X0))
         put(2 + bnd * 2, sx, by, 2, 1)
+      end
+      -- the lane's carrier: a dashed trace scrolling with the history, lit
+      -- by the band this voice lives in (lo kick, mid body, hi air)
+      if bnd > 0.04 then
+        put(bnd * 1.6, X0, by - 2, X1 - X0, 1)
+        local cx = X0 + math.floor((K.hash(r, 17) * 80 - scroll) % (X1 - X0 - 10))
+        put(bnd * 4.5, cx, by - 2, 10, 1)
       end
       if dead then
         local off = math.floor(T * 6) % 4
@@ -298,6 +305,9 @@ return function(K)
       put(2 + lpeak[r] * 4, PX + 9 + math.floor(lpeak[r] * 17), by - 3, 1, 3)
     end
     line(1, X1 + 5, LY0, X1 + 5, 63)
+    -- the playhead column throbs with the sub (lo); its rail with the level (amp)
+    line(1 + A[K.LO] * 5, X1 + 1, LY0, X1 + 1, LY0 + NR * LH - 1)
+    line(0.5 + A[K.AMP] * 3, X0 - 1, LY0, X0 - 1, LY0 + NR * LH - 1)
 
     -- the header: step, bar, tempo, energy, chaos, phrase
     local step = math.floor(K.num(K.step, 0))
@@ -357,7 +367,8 @@ return function(K)
     for r = 1, NR do
       local R = RR(r)
       local dead = r == 1 and K.kickless > 0.5
-      local lv = 0.8 + band(r) * 0.5 + lenv[r] * 1.5 + e * 0.2
+      local bd = band(r) * ((r == 1 or r == 4 or r == 5 or r == 7) and 1 or 0.67)
+      local lv = 0.8 + bd * 0.5 + lenv[r] * 1.5 + e * 0.2
       -- a dotted ring (the arm lights the dots it passes)
       local n = dead and 8 or math.floor(12 + R * 1.1)
       local rot = (r % 2 == 0 and 1 or -1) * T * 0.02
@@ -374,7 +385,8 @@ return function(K)
     for q = 0, 15 do
       local a = q / 16 * K.TAU - math.pi / 2
       local r0 = (q % 4 == 0) and 29.5 or 31
-      local lv = (q % 4 == 0 and 3 or 1.5) + ((q == cur and K.playing) and 4 or 0)
+      -- the face lights with the level (amp)
+      local lv = (q % 4 == 0 and 2 or 1) * (1 + 0.5 * A[K.AMP]) + ((q == cur and K.playing) and 4 or 0)
       line(lv, CX + math.cos(a) * r0, CY + math.sin(a) * r0, CX + math.cos(a) * 32.5, CY + math.sin(a) * 32.5)
     end
     -- the arm and its phosphor trail; chaos splits off ghost arms

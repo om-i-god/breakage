@@ -28,12 +28,24 @@ a drummer for norns. dub techno and analog house up to drill'n'bass, from one sc
 | **industrial** | clanging metal kick, ring-mod metal snare, crushed hats, struck pipes | halftime, break, four |
 | **acoustic** | a solenoid-struck acoustic kit: felt kick, wired snare, cymbal, log drum, prepared piano, pipes | broken, halftime, break, jungle |
 | **minipops** | a 70s preset rhythm box: round soft kick, dull snare, hissy cymbal, claves, guiro, bongos, congas, tambourine | bossa, rhumba, cha-cha, samba, beguine, rock |
+| **techno** | 909 kick, rimshots in a 3-3-2, crisp hats, ride, claves and pipes | minimal, four |
+| **dubstep** | a long sub kick, a huge layered snare on 3, wobble bass stabs | halfstep, halftime |
+| **breakcore** | a distorted gabber kick under a rattling bright break snare, error ticks | breakcore, break, jungle |
+| **glitch** | clicks and cuts: a sine-pop kick, one-bit snare, sine-click hats, music box, squeaks, digital errors | glitch, broken |
+| **toy** | a toy drum machine: plastic kick, rattly snare, music box, squeaks | march, rock, four |
+| **boombap** | a dusty saturated kick, crunchy lo-fi snare, dull hats, vinyl crackle and pops, heavy swing | boombap, broken |
+| **tribal** | a big frame drum, hand slaps, talking drum, logs, congas, shakers and toms | tribal, halftime |
+| **garage** | knock kick, 909 snare, rimshots, shaker, heavily shuffled hats | garage, broken |
+| **footwork** | short 808s in threes, claps, rapid toms, vox chops | footwork, break |
+| **trap** | a long tuned 808 that sags as it rings, claps on 3, hat rolls, cowbell | trap |
+| **disco** | a live-feel kit: tight kick, fat snare, sizzling open hats, tambourine, congas | disco, four |
+| **motorik** | 80s electronic drums (sweeping kick, snare and syntoms) on a steady krautrock beat | motorik, four |
 
-grooves: **four** (four on the floor, offbeat hats), **dub** (kick on 1 with syncopation, rim on the off-beats), **acid** (four with running accented 16ths), **electro** (syncopated kick, snare on 2 and 4), **broken** (2-step / broken beat with ghost snares), **break** (a breakbeat skeleton), **jungle** (a rolling break: sparse kick, snare on 2 and 4 with ghosts between, running 16ths), **halftime** (kick on 1, snare on 3, slow hats), **rave** (four on the floor under a breakbeat snare). the rhythm-box presets write their hand percussion too: **bossa** (clave on the rim, congas), **rhumba** (son clave, conga tumbao), **cha-cha** (guiro on the downbeats, cowbell, the cha-cha-cha on the rim), **samba** (surdo kick on every beat, running tambourine), **beguine** (a lilting kick, bongos) and **rock** (the slow-rock preset). chaos scatters the preset percussion into the kit's own phasing lanes. as chaos rises past the middle, any kit leans toward the break skeleton.
+grooves: **four** (four on the floor, offbeat hats), **dub** (kick on 1 with syncopation, rim on the off-beats), **acid** (four with running accented 16ths), **electro** (syncopated kick, snare on 2 and 4), **broken** (2-step / broken beat with ghost snares), **break** (a breakbeat skeleton), **jungle** (a rolling break: sparse kick, snare on 2 and 4 with ghosts between, running 16ths), **halftime** (kick on 1, snare on 3, slow hats), **rave** (four on the floor under a breakbeat snare). the rhythm-box presets write their hand percussion too: **bossa** (clave on the rim, congas), **rhumba** (son clave, conga tumbao), **cha-cha** (guiro on the downbeats, cowbell, the cha-cha-cha on the rim), **samba** (surdo kick on every beat, running tambourine), **beguine** (a lilting kick, bongos) and **rock** (the slow-rock preset). chaos scatters the preset percussion into the kit's own phasing lanes. and the rest: **minimal** (four with a 3-3-2 rim), **halfstep** (kick on 1 and a push, snare on 3), **breakcore** (kicks everywhere under the amen), **glitch** (euclidean scatters, new each phrase), **march** (oom-pah with a music box), **boombap** (swung, crackle on the one), **tribal** (talking drum, logs and congas written out), **garage** (2-step), **footwork** (kicks in threes, vox chops), **trap** (the snare on 3 and written hat rolls), **disco** (open hats on the offbeats, tambourine 16ths), **motorik** (straight 8ths, syntoms into the bar). as chaos rises past the middle, any kit leans toward the break skeleton.
 
 **groove** (PARAMS, or the groove page) forces one of these on any kit: drill snares on a bossa, the minipops box playing jungle. **kit** gives the choice back to the kit.
 
-**voices.** each kit picks a model for every voice, and **SOUND** can swap any of them for another kit's, on any kit: kick (sub, 909, 808, knock, gabber, rave, acoustic, metal, minipops), snare (909, drill, 808, noise, acoustic, jungle, metal, minipops), hats (analog, metallic, crisp, acoustic, lofi, minipops), perc (conga, bongo, cowbell, clave, acid, metal, log, plink, guiro, tambourine) and glitch ticks (click, blip, crush, ring, chirp, zap). set a model back to **kit** to follow the kit again.
+**voices.** each kit picks a model for every voice, and **SOUND** can swap any of them for another kit's, on any kit: kick (sub, 909, 808, knock, gabber, rave, acoustic, metal, minipops, dubstep, click, toy, dusty, tribal, 808 long, simmons), snare (909, drill, 808, noise, acoustic, jungle, metal, minipops, dubstep, click, toy, dusty, frame, disco, simmons), hats (analog, metallic, crisp, acoustic, lofi, minipops, dusty, click, disco), perc (conga, bongo, cowbell, clave, acid, metal, log, plink, guiro, tambourine, music box, squeak, talking drum, wobble, crackle, vox, syntom) and glitch ticks (click, blip, crush, ring, chirp, zap, error, pop). set a model back to **kit** to follow the kit again.
 
 kit changes land on the next bar with new material. **kit changes** (PARAMS) set to **on phrases** lets the conductor switch kits now and then; **kit sets dub/swing/drive** moves those three to the kit's home on each change.
 
@@ -109,7 +121,7 @@ every action is also a trigger in **PARAMS > PERFORM** for MIDI mapping: play, d
 | 1 | phrase position; the last key lights when a fill is coming |
 | 2 | energy: press to pull it there |
 | 3 | chaos: press to set it |
-| 4 | kits 1–14 (a pending kit blinks) |
+| 4 | kits, 15 to a page (key 16 flips to the next page; the page follows the kit). a pending kit blinks |
 | 5 | parts `K S C H R P T G B`: brightness = how loud; press to mute |
 | 6 | break pads: the 16 slices under the current bar; press to fire one |
 | 7 | the bar's 16ths with the playhead; the micro-edit's beat lit |
@@ -135,8 +147,20 @@ each kit has its own picture with two views (**VISUALS > view**, or hold K1 + E3
 | **industrial** | a concrete corridor of fluorescent tubes browning out on the kick, a CRT of static at the end | grinding gears advancing a tooth a step, sparks on the snares |
 | **acoustic** | a robot drum rig: solenoid arms striking each drum, buzzing on ratchets | inside a grand piano: strings ringing, bolts on some, hammers striking |
 | **minipops** | the rhythm box: the playing preset's button lit, voice lamps glowing, the grille breathing | a 70s living room: the organ with the box on top, a lava lamp, the TV glowing |
+| **techno** | a motorway at night: cats' eyes on the 16ths, rimshots flashing the lanes, the kick surging the road | a city from high above: signals sweeping the grid, light trails on the hats |
+| **dubstep** | a storm drain: the sub rippling black water, the snare lighting the tunnel and echoing down it, wobbles pulsing the far glow | a storm over the city: lightning on the snare, thunder on the kick, rain on the hats |
+| **breakcore** | a wall of CRTs flipping channels on every hit, cracking and blacking out with chaos | a tower of blocks knocked apart by the snares and rebuilt on phrase edges |
+| **glitch** | a circuit board: pulses racing down traces to each voice's chip, errors corrupting them | a datamoshed picture smearing and healing |
+| **toy** | an open music box: pins plucking the comb, a dancer turning, winding down when kickless | a shelf of wind-up toys: drummer soldier, cymbal monkey, a spinning top, a little train |
+| **boombap** | a turntable from above: crackle as dust in the grooves, the needle skipping with chaos | a bedroom studio: sampler pads lighting, a head nodding to the kick, rain on the window |
+| **tribal** | a bonfire: dancers circling, drummers striking, sparks on the hits | a stone circle under the stars, each stone lit by its voice |
+| **garage** | the top deck of a night bus: shopfronts streaming past, rain flaring on the snares | a car dashboard: the stereo's EQ dancing, wipers on the snares |
+| **footwork** | a battle circle from above: footprints glowing on the kicks, spins on the toms, the crowd hyped by vox chops | sneakers in close-up, stomping and leaving light on the floor |
+| **trap** | a car park under a sodium lamp: the 808 squatting the car and rippling the puddles, hat rolls running the chrome | a skyline: hat rolls racing along lit windows, searchlights on the snares |
+| **disco** | a light-up floor: a pattern per voice, a mirror ball, dancers lit from below | colour-wheel beams over a glitter curtain, a string section swelling |
+| **motorik** | an autobahn toward a banded sun: lane marks on the beat, pylons lighting on the syntoms | four mannequins at their consoles, one per voice |
 
-ratchets read as repeats, chaos fractures and multiplies the picture, energy fills it, kickless stretches change the light, and the glitch insert tears it. **VISUALS > theme** follows the kit or stays fixed; **kick shake** jolts the picture on the kick.
+every picture also moves with the sound itself: the engine reports its overall level, lows, mids and highs, and each theme gives each of those its own job (in dub the lows breathe the cones, the mids open the horn mouths and the floor rings, the highs glint in the fog), so the screen moves between the hits too. **audio reactivity** (VISUALS, 0–10) sets how hard: 0 runs the pictures on the drum events alone, 10 doubles it. ratchets read as repeats, chaos fractures and multiplies the picture, energy fills it, kickless stretches change the light, and the glitch insert tears it. **VISUALS > theme** follows the kit or stays fixed; **kick shake** jolts the picture on the kick.
 
 top left: the kit (and the one coming). top right: `<> gradient` (with the key or chord root the drums are centred on) or the solo section, phrase position, `~` when kickless, `half` in a halftime bar. bottom: energy (`e`) and chaos (`x`) bars and the part lights.
 
@@ -150,7 +174,7 @@ top left: the kit (and the one coming). top right: `<> gradient` (with the key o
 - **MIX:** dub, echo time, swing, chaos crush, reverb send, drive, reverb size, echo wow, level, glitch depth
 - **LEVELS:** kick, snare, clap, rim, hat, ride, perc, tom, tick, break
 - **SOUND:** kick tune, kick decay, snare tune, hat tone, key, scale (gradient's twelve modes), tune drums to key, kick / snare / hat / perc / glitch tick model (kit or any model), snare decay, open hat decay, perc decay
-- **VISUALS:** theme (follows the kit / fixed), fixed theme, overlay, speed, brightness, view (one / two), kick shake (off / soft / hard)
+- **VISUALS:** theme (follows the kit / fixed), fixed theme, overlay, speed, brightness, view (one / two), kick shake (off / soft / hard), audio reactivity (0–10)
 
 ## install
 

@@ -21,7 +21,7 @@
 -- on the same channel + ccs, and
 -- breakage follows its arc
 --
--- v0.2
+-- v0.3
 
 engine.name = "Breakage"
 
@@ -48,16 +48,19 @@ local ECHO_DIVS      = {0.5, 0.75, 1, 1.5}
 local ECHO_DIV_NAMES = {"1/8", "3/16", "1/4", "3/8"}
 local GLITCH_NAMES   = {"stutter", "tape stop", "reverse", "chop", "crush"}
 local BRK_BEATS      = {0, 2, 4, 8, 16, 32}       -- 0 = auto
-local PERC_BASE      = {50, 62, 0, 0, 36, 69, 57, 72, 0, 0}   -- midi base per perc kind (fixed: 3, 4, 9, 10)
-local PERC_FIXED     = {[3] = 800, [4] = 2500, [9] = 2800, [10] = 6000}
-local PERC_DECAY     = {0.18, 0.18, 0.18, 0.18, 0, 0.4, 0.25, 0.45, 0.13, 0.2}
+-- per perc kind: midi base (fixed-pitch kinds 3, 4, 9, 10, 15 use PERC_FIXED), decay
+local PERC_BASE      = {50, 62, 0, 0, 36, 69, 57, 72, 0, 0, 84, 76, 50, 36, 0, 57, 50}
+local PERC_FIXED     = {[3] = 800, [4] = 2500, [9] = 2800, [10] = 6000, [15] = 80}
+local PERC_DECAY     = {0.18, 0.18, 0.18, 0.18, 0, 0.4, 0.25, 0.45, 0.13, 0.2, 0.5, 0.25, 0.4, 0.35, 0.3, 0.22, 0.35}
 -- SOUND > ... model: "kit" or a voice model that replaces the kit's own
-local KICK_MODELS  = {"kit", "sub", "909", "808", "knock", "gabber", "rave", "acoustic", "metal", "minipops"}
-local SNARE_MODELS = {"kit", "909", "drill", "808", "noise", "acoustic", "jungle", "metal", "minipops"}
-local HAT_MODELS   = {"kit", "analog", "metallic", "crisp", "acoustic", "lofi", "minipops"}
+local KICK_MODELS  = {"kit", "sub", "909", "808", "knock", "gabber", "rave", "acoustic", "metal", "minipops",
+  "dubstep", "click", "toy", "dusty", "tribal", "808 long", "simmons"}
+local SNARE_MODELS = {"kit", "909", "drill", "808", "noise", "acoustic", "jungle", "metal", "minipops",
+  "dubstep", "click", "toy", "dusty", "frame", "disco", "simmons"}
+local HAT_MODELS   = {"kit", "analog", "metallic", "crisp", "acoustic", "lofi", "minipops", "dusty", "click", "disco"}
 local PERC_MODELS  = {"kit", "conga", "bongo", "cowbell", "clave", "acid", "metal", "log", "plink",
-  "guiro", "tambourine"}
-local TICK_MODELS  = {"kit", "click", "blip", "crush", "ring", "chirp", "zap"}
+  "guiro", "tambourine", "music box", "squeak", "talking drum", "wobble", "crackle", "vox", "syntom"}
+local TICK_MODELS  = {"kit", "click", "blip", "crush", "ring", "chirp", "zap", "error", "pop"}
 
 ------------------------------------------------------------------------
 -- state
@@ -485,7 +488,15 @@ local function play_step()
       if v > 0 and (v > 0.3 or chance(0.4 + S.energy * 0.6)) then
         local open = (P.open[r] or 0) > 0 and S.energy > 0.35
         local d = (s % 2 == 1) and beat_sec() * 0.25 * (P.hat_shuffle or 0) or 0
-        later(d, function() hit("hats", v * ev("hats"), function(a) hat(a, open and a > 0.3) end) end)
+        local rn = P.rolls and P.rolls[r]
+        if rn and S.energy > 0.3 then
+          -- a written hat roll (trap): the 16th split into rn, swelling
+          local a0 = v * ev("hats")
+          VIS.event("ratchet", rn, "hats")
+          spread(rn, 1, function(j) hat(a0 * (0.5 + 0.5 * j / rn), false) end)
+        else
+          later(d, function() hit("hats", v * ev("hats"), function(a) hat(a, open and a > 0.3) end) end)
+        end
       end
       if P.shaker and S.want.shaker then
         local sv = P.shaker[r] or 0
@@ -1114,6 +1125,7 @@ local function setup_params()
   params:add_number("vis_brightness", "brightness", 1, 15, 10)
   params:add_option("vis_view", "view", {"one", "two"}, 1)
   params:add_option("vis_shake", "kick shake", {"off", "soft", "hard"}, 1)
+  params:add_number("vis_react", "audio reactivity", 0, 10, 5)
 end
 
 ------------------------------------------------------------------------

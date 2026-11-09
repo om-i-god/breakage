@@ -172,7 +172,8 @@ return function(K)
 
   local function draw_corridor(S)
     local T, DT, e, c = K.T, K.DT, K.energy, K.chaos
-    local lo, hi = A[K.LO], A[K.HI]
+    local lo, hi, md = A[K.LO], A[K.HI], A[K.MID]
+    local mb = 1 + md * 0.7                -- the body of the mix lifts the concrete
     local kl = K.kickless
     for i = 0, 63 do
       dip[i] = dip[i] * math.exp(-DT / 0.18)
@@ -230,6 +231,7 @@ return function(K)
       local z = FX / (VX - x)
       local l = math.min(4, light(z) * 1.1 * clamp((z - 1) / 0.8, 0.35, 1))
       if l > 0.6 then
+        l = math.min(5.5, l * mb)
         line(l, x, py(YC, z) + 1, x, py(YF, z) - 1)
         line(l, 127 - x, py(YC, z) + 1, 127 - x, py(YF, z) - 1)
       end
@@ -239,13 +241,13 @@ return function(K)
       local z = FY * YF / (y - VY)
       local hw = FX / z
       local l = math.min(5, light(z) * 1.1)
-      if l > 0.6 then put(l, VX - hw * 0.8, y, hw * 1.6, 1) end
+      if l > 0.6 then put(math.min(6.5, l * mb), VX - hw * 0.8, y, hw * 1.6, 1) end
     end
     for y = 1, math.floor(ec) - 1, 3 do
       local z = FY * YC / (y - VY)
       local hw = FX / z
       local l = math.min(3, light(z) * 0.6)
-      if l > 0.6 then put(l, VX - hw, y, hw * 2, 1) end
+      if l > 0.6 then put(math.min(4, l * mb), VX - hw, y, hw * 2, 1) end
     end
 
     -- the end wall: dim, lit by the set
@@ -289,10 +291,12 @@ return function(K)
       local z, l = TZ[i], TL[i]
       local y = py(YC, z) + 1
       local hw = 0.34 * FX / z
-      line(math.min(12, 1 + l + hi * 1.5), VX - hw, y, VX + hw, y)
+      -- the air (hi): the tubes sing, their diffusers shimmer
+      local sing = hi * (0.6 + 0.4 * math.sin(T * 11 + TID[i] * 1.7))
+      line(math.min(12, 1 + l + sing * 4), VX - hw, y, VX + hw, y)
       if z < 2.4 then
-        line(math.min(8, l * 0.55), VX - hw, y + 1, VX + hw, y + 1)
-        put(math.min(3, l * 0.3), VX - hw - 2, y - 1, hw * 2 + 4, 1)
+        line(math.min(9, l * 0.55 + sing * 3.5), VX - hw, y + 1, VX + hw, y + 1)
+        put(math.min(5, l * 0.3 + sing * 2.5), VX - hw - 2, y - 1, hw * 2 + 4, 1)
       end
     end
 
@@ -308,7 +312,7 @@ return function(K)
     -- the static: a field of points re-dealt a dozen times a second
     local fr = math.floor(T * 12)
     local sw, shh = sx1 - sx0, sy1 - sy0
-    local np = math.floor(10 + crt * 22 + kl * 8 + c * 6)
+    local np = math.floor(10 + crt * 22 + kl * 8 + c * 6 + hi * 18)   -- the hiss is the air (hi)
     for i = 1, np do
       local x = sx0 + math.floor(K.hash(i + fr * 61, 95) * sw)
       local y = sy0 + math.floor(K.hash(i + fr * 61, 96) * shh)
@@ -366,7 +370,7 @@ return function(K)
 
   local function draw_gears(S)
     local T, DT, e, c = K.T, K.DT, K.energy, K.chaos
-    local lo, hi = A[K.LO], A[K.HI]
+    local lo, hi, md = A[K.LO], A[K.HI], A[K.MID]
     local kl = K.kickless
     clunk = clunk * math.exp(-DT / 0.12)
     hub = hub * math.exp(-DT / 0.25)
@@ -387,7 +391,7 @@ return function(K)
     if c > 0.3 then a1 = a1 + (K.hash(math.floor(T * 6), 101) - 0.5) * slip * 0.12 end
 
     -- the back plate: riveted panels, dim, lit a little by the energy
-    local pl = 1 + e * 0.6
+    local pl = 1 + e * 0.6 + md * 1.2
     for k = 0, 3 do
       local x0 = k * 32
       line(pl, x0, 0, x0, 63)
@@ -406,11 +410,12 @@ return function(K)
     local sag = kl * 3 + (1 - e) * 1
     K.ring(3, CH_X0, (CH_Y0 + CH_Y1) / 2, (CH_Y1 - CH_Y0) / 2 + 1, 8, math.pi * 0.5, math.pi * 1.5)
     K.ring(3, CH_X1, (CH_Y0 + CH_Y1) / 2, (CH_Y1 - CH_Y0) / 2 + 1, 8, -math.pi * 0.5, math.pi * 0.5)
-    K.dashes(2 + glint * 3 + hi * 1.5, CH_Y0, 4, 6, chain_off, CH_X0, CH_X1)
-    K.dashes(1.2 + glint * 2, CH_Y0 + 1, 2, 6, chain_off + 1, CH_X0, CH_X1)
+    -- the air (hi) glints along the links
+    K.dashes(2 + glint * 3 + hi * 2.5, CH_Y0, 4, 6, chain_off, CH_X0, CH_X1)
+    K.dashes(1.2 + glint * 2 + hi * 1.5, CH_Y0 + 1, 2, 6, chain_off + 1, CH_X0, CH_X1)
     local mid = math.floor(CH_Y1 + sag)
-    K.dashes(2 + hi * 1.5, mid, 4, 6, -chain_off, CH_X0, CH_X1)
-    K.dashes(1.2, mid - 1, 2, 6, -chain_off + 1, CH_X0, CH_X1)
+    K.dashes(2 + hi * 2.5, mid, 4, 6, -chain_off, CH_X0, CH_X1)
+    K.dashes(1.2 + hi * 1.5, mid - 1, 2, 6, -chain_off + 1, CH_X0, CH_X1)
     K.disc(1.5, CH_X0, (CH_Y0 + CH_Y1) / 2, 3)
     K.disc(1.5, CH_X1, (CH_Y0 + CH_Y1) / 2, 3)
 
@@ -424,18 +429,20 @@ return function(K)
     end
     for i, G in ipairs(GEARS) do
       local a = ang[i]
-      K.disc(1, G.x, G.y, G.r - 2)
+      -- the bodies warm with the load (mid)
+      local body = 1 + md * (1.1 + 0.3 * math.sin(T * 1.3 + i))
+      K.disc(body, G.x, G.y, G.r - 2)
       local gl = 2.5 + lo + e * 0.5 + (i == 3 and ring3 * 2 or 0)
       gear(gl, G, a, broken)
       -- spokes and hub
       local ns = (i == 1 or i == 4) and 5 or (i == 2 and 4 or 3)
       for k = 0, ns - 1 do
         local sa = a + k * K.TAU / ns
-        line(1.5 + lo * 0.5, G.x + math.cos(sa) * 3, G.y + math.sin(sa) * 3,
+        line(math.max(1.5 + lo * 0.5, body + 1.2), G.x + math.cos(sa) * 3, G.y + math.sin(sa) * 3,
           G.x + math.cos(sa) * (G.r - 3), G.y + math.sin(sa) * (G.r - 3))
       end
       K.ring(2.5, G.x, G.y, G.r - 3, 16)
-      local hl = 3 + (i == 1 and hub * 7 or 0) + (i == 3 and ring3 * 6 or 0)
+      local hl = 3 + lo * 2 + (i == 1 and hub * 7 or 0) + (i == 3 and ring3 * 6 or 0)
       K.disc(hl, G.x, G.y, (i == 1 or i == 4) and 3 or 2)
     end
     -- chaos: a ghost train, slipped a tooth

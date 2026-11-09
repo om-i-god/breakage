@@ -18,6 +18,11 @@
 -- winds the trace's pitch up and buzzes the cone. energy drives it harder
 -- (more excursion, more clip, a thicker halo); chaos splits the trace,
 -- tears the ribs and multiplies the halo; kickless, it just breathes.
+--
+-- the ears: view 1, the lows rumble the checker plate and glow the die pits,
+-- the mids ring the rams, the plates and the column rivets, the highs light
+-- the windows and the roof haze; view 2, the lows hold the cone out, the
+-- mids light its middle zone and ribs, the highs glitter the grille.
 return function(K)
   local M = {}
   local put, line, A, clamp = K.put, K.line, K.A, K.clamp
@@ -141,7 +146,7 @@ return function(K)
 
   local function draw_shop(S)
     local T, DT, e, c = K.T, K.DT, K.energy, K.chaos
-    local lo, hi = A[K.LO], A[K.HI]
+    local lo, hi, mid = A[K.LO], A[K.HI], A[K.MID]
     local kl = K.kickless
 
     -- hammer blows due from a ratchet
@@ -161,14 +166,14 @@ return function(K)
     local jy = jolt > 0.5 and 1 or 0
 
     -- the back wall: tall windows lit from the yard, girders each side
-    local wl = 1 + e * 0.8 + hi * 0.8
+    local wl = 0.8 + e * 0.8 + hi * 2
     for k = 0, 5 do
       local x0 = 8 + k * 19
       line(wl, x0, 2, x0 + 11, 2)
       line(wl, x0, 2, x0, 16)
       line(wl, x0 + 11, 2, x0 + 11, 16)
       line(wl * 0.8, x0 + 1, 9, x0 + 10, 9)
-      put(1, x0 + 2 + (k % 2) * 4, 5, 4, 1)
+      put(0.6 + hi * 3 * (0.5 + 0.5 * math.sin(T * 5 + k * 1.9)), x0 + 2 + (k % 2) * 4, 5, 4, 1)
     end
     line(2.5, 1, 0, 1, FLOOR)
     line(2.5, 126, 0, 126, FLOOR)
@@ -186,8 +191,10 @@ return function(K)
 
     -- the floor: a lit edge and a band of checker plate, jolting with the blows
     line(3 + jolt * 2, 0, FLOOR + jy, 127, FLOOR + jy)
-    K.dashes(1 + lo * 0.8, FLOOR + 3, 2, 5, 0)
-    K.dashes(1 + lo * 0.6, FLOOR + 6, 2, 5, 2)
+    -- (the lows rumble through the checker plate)
+    K.dashes(0.9 + lo * 2.6, FLOOR + 3, 2, 5, 0)
+    K.dashes(0.9 + lo * 2, FLOOR + 6, 2, 5, 2)
+    K.dashes(lo * 1.4, FLOOR + 4, 1, 5, 3)
     K.dashes(1, FLOOR + 9, 2, 7, 1)
     for i = #cracks, 1, -1 do
       local C = cracks[i]
@@ -242,8 +249,8 @@ return function(K)
       line(3.5, x0 + 2 + sx, CROWN1, x0 + 2 + sx, BED)
       line(3.5, x1 - 2 + sx, CROWN1, x1 - 2 + sx, BED)
       for yy = CROWN1 + 3, BED - 3, 5 do
-        put(2, x0 + sx, yy, 2, 2)
-        put(2, x1 - 1 + sx, yy, 2, 2)
+        put(1.2 + mid * 2.5, x0 + sx, yy, 2, 2)
+        put(1.2 + mid * 2.5, x1 - 1 + sx, yy, 2, 2)
       end
       -- the slide rod
       line(3 + hot * 2, cx - 2, CROWN1, cx - 2, y)
@@ -253,7 +260,8 @@ return function(K)
       line(4 + hot * 2, r0, y, r1, y)
       line(3, r0, y, r0, y + RH)
       line(3, r1, y, r1, y + RH)
-      for q = 4, RH - 2, 4 do put(1.5 + lo * 0.5, r0 + 1, y + q, 2 * RHW - 1, 1) end
+      -- (the mids: the ram's body rings)
+      for q = 4, RH - 2, 4 do put(1 + lo * 0.5 + mid * 2.8, r0 + 1, y + q, 2 * RHW - 1, 1) end
       line(4.5 + hot * 5, r0, y + RH, r1, y + RH)
       -- chaos: a ghost of the ram knocked out of step
       if c > 0.4 then
@@ -264,12 +272,17 @@ return function(K)
       -- the plate on the die, flattened and glowing after the blow
       local pv = plate[p]
       local ph = math.max(1, math.floor(3 - pv * 2 + 0.5))
-      put(3 + pv * 6, cx - 10 - pv * 3, BED - ph + jy, 21 + pv * 6, ph)
+      put(2 + mid * 3 + pv * 6, cx - 10 - pv * 3, BED - ph + jy, 21 + pv * 6, ph)
       -- the bolster, jolting with the floor
       put(2 + hot * 2, x0 - 2, BED + 2 + jy, 2 * HW + 5, 1)
       line(3.5 + hot * 3, x0 - 2, BED + jy, x1 + 2, BED + jy)
       line(2, x0 + 2, BED + 3 + jy, x0 + 2, FLOOR)
       line(2, x1 - 2, BED + 3 + jy, x1 - 2, FLOOR)
+      -- the lows: the pit under the bolster glows and throbs
+      if lo > 0.05 then
+        K.gradient(BED + 4 + jy, FLOOR - 1 + jy, function(yy) return lo * (1 + (yy - BED - 4) * 0.45) end,
+          nil, x0 + 4, x1 - 3)
+      end
       -- the shock running out along the bed
       if hot > 0 then
         local w = (1 - hot) * 22 + 3
@@ -366,7 +379,7 @@ return function(K)
     if lamp > 0.3 then K.ring(lamp * 3, GX, 5, 6 + math.sin(T * 5) * 1.5, 12) end
 
     -- haze in the roof, thicker with energy and the steam
-    K.haze(0, 0, 128, 22, 0.12 + e * 0.15 + kl * 0.15 + hi * 0.15, 1, T * 6)
+    K.haze(0, 0, 128, 22, 0.08 + e * 0.15 + kl * 0.15 + hi * 0.35, 1, T * 6)
   end
 
   ---------------------------------------------------------------- view 2 draw
@@ -381,7 +394,7 @@ return function(K)
 
   local function draw_cone(S)
     local T, DT, e, c = K.T, K.DT, K.energy, K.chaos
-    local lo, hi = A[K.LO], A[K.HI]
+    local lo, hi, mid = A[K.LO], A[K.HI], A[K.MID]
     local kl = K.kickless
     -- the cone: a stiff spring the kick throws out, the lows hold out
     local rest = lo * 0.35 * (1 - kl * 0.5) + kl * 0.15 * math.sin(T * 1.3)
@@ -402,7 +415,10 @@ return function(K)
       local off = (y // 5) % 2 * 3
       for x = 2 + off, 126, 6 do
         local dx, dy = x - CX, y - CY
-        if dx * dx + dy * dy > 35 * 35 then put(1, x, y, 1, 1) end
+        -- (the grille's holes glitter with the highs)
+        if dx * dx + dy * dy > 35 * 35 then
+          put(0.7 + hi * (1 - K.env.kick) ^ 3 * 2.5 * (0.5 + 0.5 * math.sin(T * 6 + x * 0.7 + y * 1.3)), x, y, 1, 1)
+        end
       end
     end
     for _, b in ipairs({{8, 7}, {120, 7}, {8, 57}, {120, 57}}) do
@@ -436,7 +452,7 @@ return function(K)
     -- the cone: shaded zones, the middle thrown out further than the edge
     local z1 = SR - 3.5
     K.disc(1, CX, CY, z1)
-    K.disc(1.6 + lo * 0.6, CX, CY, 17 * (1 + ex * 0.25))
+    K.disc(1.1 + mid * 2, CX, CY, 17 * (1 + ex * 0.25))
     K.disc(2.4 + lo * 0.8 + K.env.kick, CX, CY, 11 * (1 + ex * 0.45))
     -- the ribs: radial creases; snares fuzz them, chaos tears them
     for k = 0, 11 do
@@ -445,7 +461,7 @@ return function(K)
       local r1 = z1 - 1
       local tear = (c > 0.5 and K.hash(k + math.floor(T * 4) * 13, 81) < (c - 0.5)) and 0.5 or 1
       local wob = fuzz * (K.hash(k + math.floor(T * 10) * 17, 82) - 0.5) * 0.2
-      line(1 + e * 0.5 + fuzz, CX + math.cos(a) * r0, CY + math.sin(a) * r0,
+      line(1 + e * 0.5 + fuzz + mid * 2.5, CX + math.cos(a) * r0, CY + math.sin(a) * r0,
         CX + math.cos(a + wob) * (r0 + (r1 - r0) * tear), CY + math.sin(a + wob) * (r0 + (r1 - r0) * tear))
     end
     -- the dust cap, swelling, with a highlight

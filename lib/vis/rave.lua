@@ -178,7 +178,7 @@ return function(K)
 
   local function warehouse(S)
     local T, DT, e, c = K.T, K.DT, K.energy, K.chaos
-    local lo, hi = A[K.LO], A[K.HI]
+    local lo, hi, md, amp = A[K.LO], A[K.HI], A[K.MID], A[K.AMP]
     local kl = K.kickless
 
     -- the crowd's profile (a top y per pixel column): heads bob on the
@@ -225,8 +225,10 @@ return function(K)
       put(1.5 + lamps[k] * 10, 8 + (k - 1) * 28, 10, 2, 2)
     end
 
-    -- the smoke, lit faintly
-    K.haze(0, 12, 128, 46, 0.25 + e * 0.25 + kl * 0.15, 1, T * 4)
+    -- the smoke, lit faintly; the body of the mix (mid) lights it up and
+    -- rolls it faster, a brighter bank in the middle of the room
+    K.haze(0, 12, 128, 46, 0.25 + e * 0.25 + kl * 0.15, 1 + md * 1.6, T * (4 + md * 10))
+    if md > 0.08 then K.haze(30, 22, 98, 38, 0.08 + md * 0.12, 1.5 + md * 2.5, -T * (6 + md * 8)) end
 
     -- the booth's glow, the crowd black against it
     local g = 0.8 + e * 0.6 + lo * 0.6 + flare * 0.4
@@ -234,8 +236,8 @@ return function(K)
     glow(37, 58, function(y) return g * (1.4 + (y - 37) / 9) end, 28, 100)
     glow(37, 58, function(y) return g * (1.8 + (y - 37) / 7) end, 42, 86)
     -- the booth itself, over the heads in the middle
-    line(3 + flare * 3, 50, 41, 78, 41)
-    put(2 + hi * 3, 52, 42, 24, 1)
+    line(3 + flare * 3 + md * 3, 50, 41, 78, 41)
+    put(2 + hi * 3 + md * 2, 52, 42, 24, 1)
 
     -- the lasers
     local nb = clamp(math.floor(5 + e * 5 + 0.5), 4, 10)
@@ -298,7 +300,17 @@ return function(K)
       else
         local a = mid + (G.k - 0.5) * span
         local d = 20 + G.u * 50
-        put((5 + 6 * G.v) * (1 - u), EX + math.cos(a) * d, EY + math.sin(a) * d, 2, 1)
+        put((5 + 6 * G.v) * (1 - u), EX + math.cos(a) * d - 1, EY + math.sin(a) * d, 3, 1)
+      end
+    end
+    -- the air (hi): sparks running out along the beams, glinting
+    if hi > 0.05 and kl < 0.5 then
+      local ns = math.floor(2 + hi * 8)
+      for k = 1, ns do
+        local u = (T * (0.4 + K.hash(k, 61) * 0.5) + K.hash(k, 62)) % 1
+        local a = mid + (K.hash(k, 63) - 0.5) * span
+        local d = 8 + u * 70
+        put(hi * (4 + 5 * math.sin(math.pi * u)), EX + math.cos(a) * d - 1, EY + math.sin(a) * d, 3, 1)
       end
     end
     -- the emitter
@@ -318,7 +330,7 @@ return function(K)
 
   local function tunnel(S)
     local T, DT, e, c = K.T, K.DT, K.energy, K.chaos
-    local lo, hi = A[K.LO], A[K.HI]
+    local lo, hi, md, amp = A[K.LO], A[K.HI], A[K.MID], A[K.AMP]
     local kl = K.kickless
 
     local speed = (0.55 + e * 0.9 + lo * 0.4) * (1 - kl * 0.5) + speed_k
@@ -333,17 +345,19 @@ return function(K)
 
     -- the far glow at the vanishing point
     local fx, fy = centre(NR * DZ - 1.6, T)
-    K.disc(1, fx, fy, 9 + e * 5 + lo * 2)
+    -- the light at the end: the level (amp) widens it, the air (hi) makes it shimmer
+    K.disc(1 + hi * (1.5 + 0.5 * math.sin(T * 3)), fx, fy, 9 + e * 5 + lo * 2 + amp * 5)
     K.disc(1.6 + e * 0.8 + flare * 0.5, fx, fy, 4 + e * 2)
     put(3 + hi * 4, fx, fy, 1, 1)
 
     -- speed lines: streaks out from the centre
+    -- the air (hi) brightens the streaks
     for i = 0, 13 do
       local a = K.hash(i, 41) * K.TAU + T * 0.05
       local u = (T * (0.5 + K.hash(i, 42)) * (0.6 + speed * 0.3) + K.hash(i, 43)) % 1
       local r0 = 6 + u * u * 70
       local r1 = r0 + 2 + u * 8 * (0.5 + speed * 0.3)
-      line(1 + u * 3, fx + math.cos(a) * r0, fy + math.sin(a) * r0 * 0.6,
+      line(1 + u * (2 + hi * 4), fx + math.cos(a) * r0, fy + math.sin(a) * r0 * 0.6,
         fx + math.cos(a) * r1, fy + math.sin(a) * r1 * 0.6)
     end
 
@@ -359,7 +373,7 @@ return function(K)
         local bell = math.exp(-((z - 2.2) / 1.6) ^ 2)
         local near = clamp((z - 0.25) / 0.9, 0, 1)
         local far = clamp((NR * DZ - z) / 1.5, 0, 1)
-        local lv = (1 + bell * 7 + e * 1.5) * near * (0.3 + 0.7 * far)
+        local lv = (1 + bell * (4 + md * 3) + e * 1.5 + amp * 0.8) * near * (0.3 + 0.7 * far)
         -- the snare's rings racing away down the tunnel
         for _, R in ipairs(races) do
           local rz = 1.3 + (T - R.t0) * 7
@@ -373,6 +387,8 @@ return function(K)
           local a = ang + j / n * K.TAU
           local jr = 1
           if c > 0.2 then jr = 1 + (K.hash(j + (ring_i0 + k) * 13, 7) - 0.5) * c * 0.5 end
+          -- the body of the mix (mid) flexes the walls in and out
+          jr = jr * (1 + md * 0.12 * math.sin(j * 2.1 + k * 1.3 + T * 1.2))
           qx_[j] = cx + math.cos(a) * s * jr
           qy_[j] = cy + math.sin(a) * s * jr * 0.8
         end
@@ -382,7 +398,8 @@ return function(K)
           if prevn == n and kl < 0.5 then
             line(lv * 0.45, qx_[j], qy_[j], px_[j], py_[j])
           end
-          if spark > 0.1 and lv > 3 then put(lv * 0.5 + spark * 6, qx_[j], qy_[j], 1, 1) end
+          if spark > 0.1 and lv > 3 then put(lv * 0.5 + spark * 6, qx_[j], qy_[j], 1, 1)
+          end
         end
         -- chaos: a ghost of the ring at an odd angle
         if c > 0.45 and k % 2 == 0 then

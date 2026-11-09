@@ -16,6 +16,12 @@
 -- longer the burst) and they pull back together; energy grows it and wakes
 -- a counter-turning core; chaos trails ghost copies and wrenches vertices
 -- off true; break slices light one face each.
+--
+-- the ears: view 1, the lows brighten the pipe, the walls and the front
+-- flutes, the mids light the seams, the back flutes, the dust and the core
+-- tube, the highs lift the strata and glint the coal; view 2, the lows swell
+-- the glow and the solid, the mids wake the core and light a halo,
+-- the highs stream the stars and glitter a far star field.
 return function(K)
   local M = {}
   local put, line, A, clamp = K.put, K.line, K.A, K.clamp
@@ -259,7 +265,7 @@ return function(K)
   ---------------------------------------------------------------- view 1 draw
   local function draw_bore(S)
     local T, DT, e, c = K.T, K.DT, K.energy, K.chaos
-    local lo, hi = A[K.LO], A[K.HI]
+    local lo, hi, mid = A[K.LO], A[K.HI], A[K.MID]
     local kl = K.kickless
     local playing = K.playing
 
@@ -332,7 +338,7 @@ return function(K)
         end
         local yy = by - off + 1.6 * math.sin((x + camf) * 0.07 + cc * 2.3)
         if px and math.abs(yy - py) < 4 and not in_hole(x - 4, (yy + py) / 2) then
-          line(2 + e * 1.5 + lo + hi * 1.5, px, py, x, yy)
+          line(1.4 + e * 1.5 + lo + mid * 2.2 + hi * 1.5, px, py, x, yy)
         end
         px, py = x, yy
       end
@@ -429,7 +435,7 @@ return function(K)
 
     -- dust in the hole: thicker with energy, thick when the bit idles
     if H.d > 2 then
-      K.haze(hx - BW + 1, 0, hx + BW, H.d, 0.15 + e * 0.15 + lift * 0.4 + (phase == 2 and 0.3 or 0), 1, T * 5)
+      K.haze(hx - BW + 1, 0, hx + BW, H.d, 0.08 + mid * 0.3 + e * 0.15 + lift * 0.4 + (phase == 2 and 0.3 or 0), 1 + mid, T * 5)
     end
 
     -- the drill string: pipe with couplings, sliding as it cuts
@@ -457,7 +463,7 @@ return function(K)
           local x = BX + 7.5 * math.sin(th)
           local front = math.cos(th) > 0
           if px then
-            local l = (front and pf) and (6 + lo * 3 + hot * 3) or 2
+            local l = (front and pf) and (6 + lo * 3 + hot * 3) or (1.2 + mid * 3)
             line(l * (blur == 1 and 0.75 or 1), px, py, x, yy)
           end
           px, py, pf = x, yy, front
@@ -506,7 +512,7 @@ return function(K)
     line(2, CORE_X + 4, CORE_Y0 - 1, CORE_X + 4, CORE_Y1)
     for i = 1, n do
       local L = slit[i]
-      local lv = 1
+      local lv = 0.7 + mid * 1.6
       if L then
         local age = K.T - L.t0
         lv = 1 + 9 * math.exp(-age / 0.2) + 2 * math.exp(-age / 1.5)
@@ -588,7 +594,9 @@ return function(K)
 
   local function draw_solid(S)
     local T, DT, e, c = K.T, K.DT, K.energy, K.chaos
-    local lo, hi = A[K.LO], A[K.HI]
+    local lo, hi, mid = A[K.LO], A[K.HI], A[K.MID]
+    -- the highs glitter between the kicks (the hats' place)
+    local hiq = hi * (1 - K.env.kick) ^ 3
     local kl = K.kickless
     -- spin: drums push it, drag pulls it back to an idle turn
     local idle = K.playing and (0.35 + e * 0.5) or 0.25
@@ -622,9 +630,20 @@ return function(K)
       if st.r > 80 then st.r = 3 + K.rnd() * 6; st.a = K.rnd() * K.TAU end
       local ca, sa = math.cos(st.a), math.sin(st.a)
       local len = 1 + sp * 0.04 * st.s * (st.r / 30)
-      line(1 + st.r / 40 + hi * 2, cx + ca * st.r, cy + sa * st.r * 0.6,
+      line(0.8 + st.r / 40 + hi * 2.2, cx + ca * st.r, cy + sa * st.r * 0.6,
         cx + ca * (st.r + len), cy + sa * (st.r + len) * 0.6)
     end
+
+    -- the highs: a far field of stars glittering
+    if hiq > 0.05 then
+      for i = 0, 27 do
+        local x, y = math.floor(K.hash(i, 81) * 127), math.floor(K.hash(i, 82) * 44)
+        local tw = 0.5 + 0.5 * math.sin(T * (4 + K.hash(i, 83) * 7) + i * 2.3)
+        put(hiq * (1 + tw * 4), x, y, 1 + (i % 3 == 0 and 1 or 0), 1)
+      end
+    end
+    -- the mids: a halo round the glow
+    K.ring(mid * 3.2, cx, cy, 24 + e * 3 + lo * 2, 20)
 
     -- the grid floor rolling toward us
     local HZ = 47
@@ -653,7 +672,8 @@ return function(K)
     end
 
     -- the core: an octahedron turning the other way, woken by energy
-    local cv = e * (1 - kl) + bite * 0.4
+    -- (the mids wake it too)
+    local cv = e * (1 - kl) + bite * 0.4 + mid * 0.2
     if cv > 0.15 then
       for _, E in ipairs(OE) do
         local x1, y1, z1 = proj(OV[E[1]], ax * 0.5, core_a, az, sc * 0.42, cx, cy, 0, 0)

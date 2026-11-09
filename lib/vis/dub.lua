@@ -15,6 +15,12 @@
 -- light each playback head they pass (one head at rest, more with energy and
 -- chaos), and each pass writes a fainter copy back (the feedback); the kick
 -- slams the VU and the capstan, snares and echoes twang the springs.
+--
+-- the ears: view 1, the lows pool the glow and pump the cones, the mids open
+-- and light the horns, warm the mid cabinets and ring the yard, the highs
+-- glint the stars, tweeters and fog; view 2, the lows swell the tape and the
+-- rollers and the tank's transducers, the mids light the heads and shake the springs, the highs glitter
+-- on the oxide and in the tank; the lows and the level light the side rails.
 return function(K)
   local M = {}
   local put, line, A, clamp = K.put, K.line, K.A, K.clamp
@@ -226,17 +232,18 @@ return function(K)
       line(edge, fx0, y, fx0, y1)
       line(edge, fx1, y, fx1, y1)
     end
-    line(edge * 0.8, fx0, top + 11, fx1, top + 11)
-    line(edge * 0.8, fx0, top + 30, fx1, top + 30)
     line(edge * 0.6, fx0, bot, fx1, bot)
     -- the horn: a flared slot lit by the mids, the snare and the siren
-    local hlv = 1.5 + mid * 3 + K.env.snare * 4 + siren * 6 + flash * 2
+    local hlv = 1.2 + mid * 5 + K.env.snare * 4 + siren * 6 + flash * 2
     local hx = x0 + w / 2
-    for k = 0, 2 do
+    for k = 0, 3 do
       local yy = top + 3 + k * 2
-      local hw = 9 - k * 2 + siren * math.sin(K.T * 9 + k) * 1.5
+      local hw = 6 + mid * 4 - k * 1.5 + siren * math.sin(K.T * 9 + k) * 1.5
       put(hlv * (1 - k * 0.2), hx - hw, yy, hw * 2, 1)
     end
+    -- the mid cabinet's dividers warm with the body of the mix
+    line(edge * 0.8 + mid * 2.5, fx0, top + 11, fx1, top + 11)
+    line(edge * 0.8 + mid * 2.5, fx0, top + 30, fx1, top + 30)
     -- tweeter glints with the hats
     put(1.5 + hi * 6 + K.env.hat * 5, x0 + 3, top + 2, 2, 1)
     put(1.5 + hi * 6 + K.env.ohat * 6, fx1 - 4, top + 2, 2, 1)
@@ -258,7 +265,7 @@ return function(K)
 
   local function draw1(S)
     local T, DT, e, c = K.T, K.DT, K.energy, K.chaos
-    local lo, hi, kl = A[K.LO], A[K.HI], K.kickless
+    local lo, hi, kl, mid = A[K.LO], A[K.HI], K.kickless, A[K.MID]
     echoes(c)
     local g = math.max(gs, lo * 0.6) * (1 - kl * 0.6)
     local cb = math.min(1.4, cs * (1 + e * 0.4))
@@ -317,16 +324,22 @@ return function(K)
       elseif age >= 0 then
         local u = age / life
         local r = 2 + age * R.sp * (1 - kl * 0.35)
-        local lv = R.lv * (1 - u) ^ 1.1 + hi * 1.5 * (1 - u)
+        local lv = R.lv * (1 - u) ^ 1.1 * (0.6 + mid * 0.7) + hi * 1.5 * (1 - u)
         local jit = c * 3.5 * (1 - u)
         fring(lv, R.x, R.y, r, jit, R.seed)
-        if age < 0.35 then fring(lv * 0.6, R.x, R.y, r + 1.5, jit, R.seed + 1) end
+        if age < 0.35 + mid * 0.2 then fring(lv * 0.6, R.x, R.y, r + 1.5, jit, R.seed + 1) end
         if c > 0.4 and i % 2 == 0 then
           fring(lv * 0.5, R.x + c * 5 * math.sin(R.seed), R.y + 1, r * 0.8, jit * 2, R.seed + 3)
         end
       end
     end
     if flash > 0.05 then put(3 + flash * 9, CX - 1, CY - 1, 3, 1) end
+    if mid > 0.08 then
+      for k = 0, 1 do
+        local r = 5 + k * 6 + mid * 4 + math.sin(T * 1.3 + k) * 0.8
+        fring(mid * (3 - k), CX, CY, r, 0, 90 + k)
+      end
+    end
 
     -- the stacks, with puffs of air out of the cones on each kick
     stack(0, g, cb, lo, hi, e, c)
@@ -390,6 +403,8 @@ return function(K)
   local function draw2(S)
     local T, DT, DTS, e, c = K.T, K.DT, K.DTS, K.energy, K.chaos
     local lo, hi, kl, mid = A[K.LO], A[K.HI], K.kickless, A[K.MID]
+    -- the highs glitter between the kicks (the hats' place)
+    local hiq = hi * (1 - K.env.kick) ^ 3
     local et = math.max(0.08, K.echo_t)
     local v = HD / et
     local flutter = 1 + c * 0.25 * math.sin(T * 7.3) + c * 0.12 * math.sin(T * 17.1)
@@ -450,6 +465,7 @@ return function(K)
     for _, p in ipairs({{3, 3}, {123, 3}, {3, 37}, {123, 37}}) do put(2, p[1], p[2], 2, 2) end
 
     -- the tape: its body, edges and oxide grain sliding past
+    -- the lows swell the tape's body, the highs make its oxide glitter
     local tb = 1 + e * 0.25 + lo * 0.2
     put(tb, XL, TCY + TR - 2, RUN, 5)
     put(tb, XL, TCY - TR - 2, RUN, 5)
@@ -459,12 +475,12 @@ return function(K)
     end
     for k = 0, 18 do
       local s = (k * P / 19 + tp) % P
-      tmark(1.5 + e + hi, s, 1)
+      tmark(1 + e + hiq * 3.5 * (0.5 + 0.5 * math.sin(T * 13 + k * 2.1)), s, 1)
     end
     -- the guide rollers: spokes turning with the tape
     for _, cx in ipairs({XL, XR}) do
       local rot = tp / (TR - 4)
-      K.ring(2 + caps * 3 + lo, cx, TCY, 6, 12)
+      K.ring(2 + caps * 3 + lo * 1.5, cx, TCY, 6, 12)
       for k = 0, 2 do
         local a = rot + k * K.TAU / 3
         line(2 + caps * 2, cx, TCY, cx + math.cos(a) * 5, TCY + math.sin(a) * 5)
@@ -484,7 +500,7 @@ return function(K)
     -- the heads under the bottom run: erase, record, three playback
     local hy = TCY + TR + 4
     local function head(x, lamp, on)
-      local l = on and 1.5 or 1
+      local l = (on and 1.2 or 0.8) + mid * 1.1
       put(l, x - 3, hy + 1, 7, 4)
       line(l + 1.5, x - 3, hy, x + 3, hy)
       put(math.min(13, 2 + lamp * 11), x, hy - 1, 1, 6)
@@ -515,16 +531,17 @@ return function(K)
     end
 
     -- the spring tank: two coils, swinging with the hits
-    line(1, 3, 43, 124, 43)
+    K.dashes(1, 43, 3, 4, 0, 3, 125)
     line(1.5, 3, 43, 3, 62)
     line(1.5, 124, 43, 124, 62)
     for k = 1, 2 do
       local by = 48 + (k - 1) * 9
       local sk = sps[k]
-      put(math.min(7, 2 + sk * 2), 5, by - 2, 3, 5)
-      put(math.min(7, 2 + sk * 2), 119, by - 2, 3, 5)
-      local amp = math.min(2.4, sk * (0.6 + c * 0.4)) + 0.15
-      local lv = math.min(3.4, 1 + sk * 1.2 + mid * 0.4)
+      -- (the transducers at the tank's ends throb with the lows)
+      put(math.min(8, 1.5 + sk * 2 + lo * 3), 5, by - 3, 3, 7)
+      put(math.min(8, 1.5 + sk * 2 + lo * 3), 119, by - 3, 3, 7)
+      local amp = math.min(2.4, sk * (0.6 + c * 0.4)) + 0.15 + mid * 0.7
+      local lv = math.min(4, 1 + sk * 1.2 + mid * 0.7)
       local px, py
       local n = 38
       for j = 0, n do
@@ -547,6 +564,24 @@ return function(K)
     -- the tank's lamp: the reverb's tail
     put(2 + (spr[1] + spr[2]) * 1.5, 61, 63, 6, 1)
     K.grain(function(u, w) return 6 + u * 116, 44 + w * 17 end, 2 + hi * 10 + (spr[1] + spr[2]) * 3, 2 + hi * 4)
+    -- the highs: the chassis screws and the tape's edge catch the light
+    for k = 0, 9 do
+      local x = XL + 4 + k * 8
+      local tw = 0.5 + 0.5 * math.sin(T * (7 + k) + k * 1.9)
+      put(hiq * 4 * tw, x, TCY - TR - 3, 2, 1)
+      put(hiq * 4 * (1 - tw), x + 3, TCY + TR + 3, 2, 1)
+    end
+    -- the oxide's sheen along both tape edges, sliding with the tape
+    -- glints riding across the bottom run of the tape
+    for k = 0, 11 do
+      local x = XL + (k * 7 + tp * 1.0) % RUN
+      put(hiq * 4 * (0.5 + 0.5 * math.sin(T * 8 + k * 2.3)), x, TCY + TR - 2, 1, 5)
+    end
+    -- and the air in the spring tank shimmers
+    K.haze(8, 45, 119, 61, hiq * 0.35, 1, -T * 9)
+    -- the chassis' side rails glow with the lows, the level and the hits
+    line(lo * 2.5 + A[K.AMP] * 1.2, 5, 8, 5, 38)
+    line(lo * 2.5 + A[K.AMP] * 1.2, 122, 8, 122, 38)
   end
 
   function M.draw(S)

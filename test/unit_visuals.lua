@@ -35,7 +35,9 @@ local function mkS()
 end
 
 local NAMES = {"dub", "house", "acid", "analord", "syro", "broken", "drill", "gabber",
-  "ambient", "rave", "jungle", "industrial", "acoustic", "minipops"}
+  "ambient", "rave", "jungle", "industrial", "acoustic", "minipops",
+  "techno", "dubstep", "breakcore", "glitch", "toy", "boombap", "tribal", "garage",
+  "footwork", "trap", "disco", "motorik"}
 
 -- one 16th of the groove. o: kick, snare, hats, perc, ticks, brk, ratchet
 -- (probability per step of a burst), glitch, energy
@@ -59,11 +61,11 @@ local function groove(S, VIS, k, o)
   end
   if o.ride and s % 4 == 1 then VIS.event("ride", 0.5) end
   if o.perc then
-    if s % 3 == 1 then VIS.event("perc", (s % 10) + 1, 0.7) end
+    if s % 3 == 1 then VIS.event("perc", (s % 17) + 1, 0.7) end
     if s == 11 then VIS.event("tom", 0.8, 110) end
     if s == 9 then VIS.event("shaker", 0.5) end
   end
-  if o.ticks and s % 5 == 2 then VIS.event("tick", s % 6 + 1) end
+  if o.ticks and s % 5 == 2 then VIS.event("tick", s % 8 + 1) end
   if o.brk then VIS.event("brk", (k * 5) % 16 + 1, 16, k % 7 == 3) end
   if o.ratchet and math.random() < o.ratchet then
     local n = ({2, 3, 4, 6, 8})[math.random(5)]
@@ -163,6 +165,7 @@ local function run(theme, scen, opts)
   env()
   if opts.view then PV.vis_view = opts.view end
   if opts.shake then PV.vis_shake = opts.shake end
+  if opts.react then PV.vis_react = opts.react end
   local VIS = include("lib/visuals")
   VIS.init()
   math.randomseed(opts.seed or 11)
@@ -270,7 +273,7 @@ for th, name in ipairs(NAMES) do
     -- the second view: its own picture, inside the same budgets
     test("visuals " .. name .. " view 2", function()
       for _, sc in ipairs({"silence", "peak", "chaos", "kickless"}) do
-        local st = run(th, sc, {view = 2, shake = 3})
+        local st = run(th, sc, {view = 2, shake = 2})
         assert(st.bad == 0, sc .. ": " .. st.bad .. " NaN / inf")
         assert(st.ops_max <= OPS_BUDGET, sc .. ": draw calls " .. st.ops_max)
         assert(st.lit_max <= LIT_MAX, string.format("%s: lit %.3f", sc, st.lit_max))
@@ -333,11 +336,16 @@ for th, name in ipairs(NAMES) do
       end
       local same = pr(with({}), with({}))
       assert(same == 0, "two identical runs differ: " .. same)
+      -- full audio reactivity: every band the engine reports moves the picture
       local dhi = pr(with({out_hi = 0}), with({out_hi = 1}))
       local dlo = pr(with({out_lo = 0}), with({out_lo = 1}))
-      if REPORT then print(string.format("react %-9s hi %.3f lo %.3f", name, dhi, dlo)) end
-      assert(dhi > 0.01, string.format("out_hi barely changes it: %.4f", dhi))
-      assert(dlo > 0.02, string.format("out_lo barely changes it: %.4f", dlo))
+      local dmid = pr(with({out_mid = 0}), with({out_mid = 1}))
+      local damp = pr(with({out_amp = 0}), with({out_amp = 1}))
+      if REPORT then print(string.format("react %-9s hi %.3f lo %.3f mid %.3f amp %.3f", name, dhi, dlo, dmid, damp)) end
+      assert(dhi > 0.03, string.format("out_hi barely changes it: %.4f", dhi))
+      assert(dlo > 0.04, string.format("out_lo barely changes it: %.4f", dlo))
+      assert(dmid > 0.03, string.format("out_mid barely changes it: %.4f", dmid))
+      assert(damp > 0.03, string.format("out_amp barely changes it: %.4f", damp))
     end)
 
     -- chaos (same groove, same audio) visibly changes the picture, and

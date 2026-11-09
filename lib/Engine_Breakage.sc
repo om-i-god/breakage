@@ -19,18 +19,22 @@
 //
 // commands (all args f unless noted; tone is always 0..1)
 //   kick   amp tune decay drive bend type   tune midi; type 1 sub 2 909 3 808 4 knock 5 gabber
-//                                            6 rave 7 acoustic 8 metal 9 minipops
+//                                            6 rave 7 acoustic 8 metal 9 minipops 10 dubstep
+//                                            11 click 12 toy 13 dusty 14 tribal 15 808 long 16 simmons
 //   snare  amp tune decay tone pan bend type   tune midi; bend semitones; 1 909 2 drill 3 808 4 noise
-//                                            5 acoustic 6 jungle 7 metal 8 minipops
+//                                            5 acoustic 6 jungle 7 metal 8 minipops 9 dubstep
+//                                            10 click 11 toy 12 dusty 13 frame 14 disco 15 simmons
 //   clap   amp decay tone pan
 //   rim    amp tune pan                      tune midi
-//   hat    amp decay tone pan type           1 analog 2 metallic 3 crisp 4 acoustic 5 lofi 6 minipops; decay <= 0.15 chokes the open hat
+//   hat    amp decay tone pan type           1 analog 2 metallic 3 crisp 4 acoustic 5 lofi 6 minipops 7 dusty 8 click 9 disco; decay <= 0.15 chokes the open hat
 //   ride   amp decay tone pan
 //   shaker amp decay pan
 //   tom    amp hz decay pan bend             bend semitones
 //   perc   amp hz decay pan kind             1 conga 2 bongo 3 cowbell 4 clave 5 acid
 //                                            6 metal 7 log 8 plink 9 guiro 10 tambourine
-//   tick   amp kind hz pan                   1 click 2 blip 3 crush 4 ring 5 chirp 6 zap
+//                                            11 music box 12 squeak 13 talking drum 14 wobble 15 crackle
+//                                            16 vox 17 syntom
+//   tick   amp kind hz pan                   1 click 2 blip 3 crush 4 ring 5 chirp 6 zap 7 error 8 pop
 //   brk    amp pos len rate pan              slice of the loaded break; monophonic
 //   break_load path (s)                      mono or stereo sound file
 //   glitch mode slice dur mix                1 stutter 2 tape stop 3 reverse 4 chop 5 crush
@@ -235,6 +239,104 @@ Engine_Breakage : CroneEngine {
       Out.ar(out, sig ! 2);
     }).add;
 
+    // dubstep: a deep sub with a long tail, a punch and a click on top
+    SynthDef(\brk_kick_dubstep, {
+      arg out, amp=0.8, tune=29, decay=0.6, drive=0, bend=1;
+      var base  = tune.midicps;
+      var pe    = EnvGen.ar(Env([1, 0], [0.06], [-6]));
+      var f     = base * (1 + (pe * (3 * bend.clip(0, 4))));
+      var aenv  = EnvGen.ar(Env([0, 1, 0.8, 0], [0.002, decay * 0.7, decay * 1.2], [0, -0.5, -4]), doneAction: 2);
+      var body  = SinOsc.ar(f) * aenv;
+      var punch = SinOsc.ar(f * 3) * EnvGen.ar(Env.perc(0.001, 0.03, 1, -6)) * 0.4;
+      var clk   = HPF.ar(WhiteNoise.ar, 4000) * EnvGen.ar(Env.perc(0.0003, 0.006)) * 0.5;
+      var sig   = (((body * 1.4) + punch + clk) * 1.1).tanh * 0.95;
+      sig = kdrive.value(sig, drive) * amp;
+      Out.ar(out, sig ! 2);
+    }).add;
+
+    // click: microsound, a short sine pop and a digital click
+    SynthDef(\brk_kick_click, {
+      arg out, amp=0.8, tune=36, decay=0.3, drive=0, bend=1;
+      var base = (tune + 12).midicps;
+      var pe   = EnvGen.ar(Env([1, 0], [0.01], [-8]));
+      var f    = base * (1 + (pe * (4 * bend.clip(0, 4))));
+      var aenv = EnvGen.ar(Env.perc(0.0005, (decay * 0.15).max(0.02), 1, -8), doneAction: 2);
+      var pop  = SinOsc.ar(f) * aenv;
+      var clk  = (Impulse.ar(0) * 0.8) + (Latch.ar(WhiteNoise.ar, Impulse.ar(8000)) * EnvGen.ar(Env.perc(0.0001, 0.002)) * 0.5);
+      var sig  = ((pop * 1.6) + clk).clip2(1) * 0.9;
+      sig = kdrive.value(sig, drive) * amp;
+      Out.ar(out, sig ! 2);
+    }).add;
+
+    // toy: a tiny plastic thump with a rattle
+    SynthDef(\brk_kick_toy, {
+      arg out, amp=0.8, tune=36, decay=0.3, drive=0, bend=1;
+      var base   = (tune + 19).midicps;
+      var pe     = EnvGen.ar(Env([1, 0], [0.015], [-5]));
+      var f      = base * (1 + (pe * (1.5 * bend.clip(0, 4))));
+      var aenv   = EnvGen.ar(Env.perc(0.001, (decay * 0.25).max(0.04), 1, -6), doneAction: 2);
+      var body   = (SinOsc.ar(f) + (Pulse.ar(f * 2, 0.3) * 0.08)) * aenv;
+      var rattle = BPF.ar(WhiteNoise.ar, 1800, 0.5) * EnvGen.ar(Env.perc(0.001, 0.02)) * 0.4;
+      var sig    = ((body * 1.3) + rattle).tanh * 0.85;
+      sig = kdrive.value(sig, drive) * amp;
+      Out.ar(out, sig ! 2);
+    }).add;
+
+    // dusty: a boom-bap kick, saturated, a little crushed and dulled
+    SynthDef(\brk_kick_dusty, {
+      arg out, amp=0.8, tune=33, decay=0.5, drive=0, bend=1;
+      var base  = (tune + 2).midicps;
+      var pe    = EnvGen.ar(Env([1, 0], [0.04], [-5]));
+      var f     = base * (1 + (pe * (2.5 * bend.clip(0, 4))));
+      var aenv  = EnvGen.ar(Env.perc(0.002, decay * 0.9, 1, -4), doneAction: 2);
+      var body  = SinOsc.ar(f) * aenv;
+      var knock = BPF.ar(WhiteNoise.ar, 180, 0.6) * EnvGen.ar(Env.perc(0.001, 0.05)) * 1.2;
+      var sig   = (((body * 1.8) + knock) * 1.5).tanh;
+      sig = LPF.ar(Latch.ar(sig, Impulse.ar(22050)).round(0.02), 3500) * 0.9;
+      sig = kdrive.value(sig, drive) * amp;
+      Out.ar(out, sig ! 2);
+    }).add;
+
+    // tribal: a big frame drum, a long low skin
+    SynthDef(\brk_kick_tribal, {
+      arg out, amp=0.8, tune=31, decay=0.6, drive=0, bend=1;
+      var base = (tune + 4).midicps;
+      var pe   = EnvGen.ar(Env([1, 0], [0.05], [-4]));
+      var f    = base * (1 + (pe * (1.2 * bend.clip(0, 4))));
+      var aenv = EnvGen.ar(Env.perc(0.003, decay * 1.6, 1, -4), doneAction: 2);
+      var body = (SinOsc.ar(f) + ((SinOsc.ar(f * 1.51) * 0.3) * EnvGen.ar(Env.perc(0.001, decay * 0.4)))) * aenv;
+      var skin = LPF.ar(WhiteNoise.ar, 900) * EnvGen.ar(Env.perc(0.002, 0.06)) * 0.9;
+      var sig  = ((body * 1.2) + skin).tanh * 0.9;
+      sig = kdrive.value(sig, drive) * amp;
+      Out.ar(out, sig ! 2);
+    }).add;
+
+    // 808 long: a trap 808, a long tuned boom that sags in pitch as it rings
+    SynthDef(\brk_kick_808long, {
+      arg out, amp=0.8, tune=31, decay=0.8, drive=0, bend=1;
+      var base = tune.midicps;
+      var pe   = EnvGen.ar(Env([1, 0], [0.12], [-4]));
+      var sag  = EnvGen.ar(Env([1, 0.94], [decay * 2], [-2]));
+      var f    = base * (1 + (pe * (0.6 * bend.clip(0, 4)))) * sag;
+      var aenv = EnvGen.ar(Env([0, 1, 0.85, 0], [0.002, decay * 1.2, decay * 1.6], [0, -0.5, -3]), doneAction: 2);
+      var clk  = HPF.ar(WhiteNoise.ar, 3000) * EnvGen.ar(Env.perc(0.0003, 0.004)) * 0.3;
+      var sig  = (((SinOsc.ar(f) * aenv) * 1.6) + clk).tanh * 0.95;
+      sig = kdrive.value(sig, drive) * amp;
+      Out.ar(out, sig ! 2);
+    }).add;
+
+    // simmons: an 80s electronic drum, a fast sine sweep over a noise puff
+    SynthDef(\brk_kick_simmons, {
+      arg out, amp=0.8, tune=33, decay=0.45, drive=0, bend=1;
+      var base = (tune + 7).midicps;
+      var f    = base * EnvGen.ar(Env([1 + (2 * bend.clip(0, 4)), 1], [0.08], [-4]));
+      var aenv = EnvGen.ar(Env.perc(0.001, decay * 0.7, 1, -5), doneAction: 2);
+      var nz   = BPF.ar(WhiteNoise.ar, 1200, 0.8) * EnvGen.ar(Env.perc(0.001, 0.05)) * 0.6;
+      var sig  = ((SinOsc.ar(f) * aenv * 1.3) + nz).tanh * 0.9;
+      sig = kdrive.value(sig, drive) * amp;
+      Out.ar(out, sig ! 2);
+    }).add;
+
     // ---------------------------------------------------------------- snare
     // all snares: tune = midi of the body, decay = s, tone 0..1 brightness,
     // bend = semitones glided across the hit
@@ -370,6 +472,107 @@ Engine_Breakage : CroneEngine {
       sends.value(Pan2.ar(LPF.ar(sig, 7000), pan), out, echoOut, verbOut, echo, verb);
     }).add;
 
+    // dubstep: a big snare with a clap layer and a long noise tail
+    SynthDef(\brk_snare_dubstep, {
+      arg out, echoOut, verbOut, amp=0.8, tune=53, decay=0.25, tone=0.5, pan=0, bend=0, echo=0, verb=0;
+      var tn     = tone.clip(0, 1);
+      var len    = decay.clip(0.02, 2);
+      var gl     = (bend * EnvGen.ar(Env([0, 1], [len], [-2]))).midiratio;
+      var f      = tune.midicps * gl * EnvGen.ar(Env([1.6, 1], [0.02], [-4]));
+      var body   = (SinOsc.ar(f) + (SinOsc.ar(f * 1.47) * 0.4)) * EnvGen.ar(Env.perc(0.001, (len * 0.4).max(0.04), 1, -5));
+      var bursts = EnvGen.ar(Env([0, 1, 0.2, 1, 0.2, 1, 0], [0.0008, 0.007, 0.0008, 0.008, 0.0008, len * 1.5],
+                     [0, -4, 0, -4, 0, -4]), doneAction: 2);
+      var w      = WhiteNoise.ar;
+      var nz     = (BPF.ar(w, tn.linexp(0, 1, 1200, 3500), 0.7) * 2) + (HPF.ar(w, 6000) * 0.5);
+      var sig    = (((body * 0.9) + (nz * bursts)) * 1.4).tanh * 0.85 * amp;
+      sends.value(Pan2.ar(sig, pan), out, echoOut, verbOut, echo, verb);
+    }).add;
+
+    // click: digital, a burst of one-bit noise and a sine blip
+    SynthDef(\brk_snare_click, {
+      arg out, echoOut, verbOut, amp=0.8, tune=60, decay=0.1, tone=0.7, pan=0, bend=0, echo=0, verb=0;
+      var tn   = tone.clip(0, 1);
+      var len  = decay.clip(0.02, 2);
+      var gl   = (bend * EnvGen.ar(Env([0, 1], [len], [-2]))).midiratio;
+      var f    = tune.midicps * gl;
+      var env  = EnvGen.ar(Env.perc(0.0005, len * 0.5, 1, -8), doneAction: 2);
+      var bits = Latch.ar(WhiteNoise.ar, Impulse.ar(tn.linexp(0, 1, 2000, 12000))).sign * 0.5;
+      var blip = SinOsc.ar(f * 4) * EnvGen.ar(Env.perc(0.0002, 0.01));
+      var sig  = ((bits * env) + (blip * 0.6)).clip2(1) * 0.75 * amp;
+      sends.value(Pan2.ar(sig, pan), out, echoOut, verbOut, echo, verb);
+    }).add;
+
+    // toy: a tiny body and a buzzing rattle
+    SynthDef(\brk_snare_toy, {
+      arg out, echoOut, verbOut, amp=0.8, tune=62, decay=0.12, tone=0.5, pan=0, bend=0, echo=0, verb=0;
+      var tn   = tone.clip(0, 1);
+      var len  = decay.clip(0.02, 2);
+      var gl   = (bend * EnvGen.ar(Env([0, 1], [len], [-2]))).midiratio;
+      var f    = (tune + 12).midicps * gl;
+      var body = SinOsc.ar(f) * EnvGen.ar(Env.perc(0.0005, 0.03, 1, -5)) * 0.5;
+      var env  = EnvGen.ar(Env.perc(0.001, len * 0.7, 1, -5), doneAction: 2);
+      var rat  = BPF.ar(WhiteNoise.ar, tn.linexp(0, 1, 3000, 8000), 0.6) * (0.6 + (LFPulse.ar(55) * 0.6));
+      var sig  = ((body + (rat * env)) * 1.2).tanh * 0.75 * amp;
+      sends.value(Pan2.ar(sig, pan), out, echoOut, verbOut, echo, verb);
+    }).add;
+
+    // dusty: a crunchy lo-fi snare, crushed and dulled
+    SynthDef(\brk_snare_dusty, {
+      arg out, echoOut, verbOut, amp=0.8, tune=53, decay=0.2, tone=0.5, pan=0, bend=0, echo=0, verb=0;
+      var tn   = tone.clip(0, 1);
+      var len  = decay.clip(0.02, 2);
+      var gl   = (bend * EnvGen.ar(Env([0, 1], [len], [-2]))).midiratio;
+      var f    = tune.midicps * gl * EnvGen.ar(Env([1.3, 1], [0.015], [-4]));
+      var body = (SinOsc.ar(f) + (SinOsc.ar(f * 1.7) * 0.4)) * EnvGen.ar(Env.perc(0.001, (len * 0.4).max(0.03), 1, -5));
+      var env  = EnvGen.ar(Env.perc(0.001, len * 1.1, 1, -4), doneAction: 2);
+      var nz   = BPF.ar(WhiteNoise.ar, tn.linexp(0, 1, 1500, 4000), 0.9) * 1.8;
+      var sig  = (((body * 0.8) + (nz * env)) * 2).tanh;
+      sig = LPF.ar(Latch.ar(sig, Impulse.ar(16000)).round(0.03), 5000) * 0.8 * amp;
+      sends.value(Pan2.ar(sig, pan), out, echoOut, verbOut, echo, verb);
+    }).add;
+
+    // frame: a hand slap on a frame drum
+    SynthDef(\brk_snare_frame, {
+      arg out, echoOut, verbOut, amp=0.8, tune=55, decay=0.2, tone=0.5, pan=0, bend=0, echo=0, verb=0;
+      var tn   = tone.clip(0, 1);
+      var len  = decay.clip(0.02, 2);
+      var gl   = (bend * EnvGen.ar(Env([0, 1], [len], [-2]))).midiratio;
+      var f    = tune.midicps * gl * 0.5;
+      var env  = EnvGen.ar(Env.perc(0.001, len * 1.5, 1, -5), doneAction: 2);
+      var drum = (SinOsc.ar(f * EnvGen.ar(Env([1.4, 1], [0.02], [-4]))) + (SinOsc.ar(f * 2.3) * 0.3)) * env;
+      var slap = BPF.ar(WhiteNoise.ar, tn.linexp(0, 1, 1500, 4500), 0.5) * EnvGen.ar(Env.perc(0.0005, 0.025, 1, -5)) * 2;
+      var sig  = ((drum * 0.9) + slap).tanh * 0.8 * amp;
+      sends.value(Pan2.ar(sig, pan), out, echoOut, verbOut, echo, verb);
+    }).add;
+
+    // disco: a fat, tight snare with a short room
+    SynthDef(\brk_snare_disco, {
+      arg out, echoOut, verbOut, amp=0.8, tune=55, decay=0.18, tone=0.5, pan=0, bend=0, echo=0, verb=0;
+      var tn   = tone.clip(0, 1);
+      var len  = decay.clip(0.02, 2);
+      var gl   = (bend * EnvGen.ar(Env([0, 1], [len], [-2]))).midiratio;
+      var f    = tune.midicps * gl * EnvGen.ar(Env([1.3, 1], [0.012], [-4]));
+      var body = (SinOsc.ar(f) + (SinOsc.ar(f * 1.62) * 0.4)) * EnvGen.ar(Env.perc(0.001, (len * 0.35).max(0.03), 1, -5));
+      var env  = EnvGen.ar(Env.perc(0.002, len, 1, -4), doneAction: 2);
+      var w    = WhiteNoise.ar;
+      var nz   = LPF.ar((BPF.ar(w, tn.linexp(0, 1, 2500, 6000), 1.0) * 1.6) + (HPF.ar(w, 7000) * 0.3), 9000);
+      var sig  = (((body * 0.9) + (nz * env)) * 1.15).tanh * 0.85 * amp;
+      sends.value(Pan2.ar(sig, pan), out, echoOut, verbOut, echo, verb);
+    }).add;
+
+    // simmons: a pitch-swept tone over band-passed noise
+    SynthDef(\brk_snare_simmons, {
+      arg out, echoOut, verbOut, amp=0.8, tune=57, decay=0.2, tone=0.5, pan=0, bend=0, echo=0, verb=0;
+      var tn  = tone.clip(0, 1);
+      var len = decay.clip(0.02, 2);
+      var gl  = (bend * EnvGen.ar(Env([0, 1], [len], [-2]))).midiratio;
+      var f   = tune.midicps * gl * EnvGen.ar(Env([2, 1], [0.05], [-4]));
+      var env = EnvGen.ar(Env.perc(0.001, len * 1.2, 1, -4), doneAction: 2);
+      var sig = ((SinOsc.ar(f) * 0.6) + (BPF.ar(WhiteNoise.ar, tn.linexp(0, 1, 2000, 6000), 1.2) * 1.5)) * env;
+      sig = (sig * 1.3).tanh * 0.8 * amp;
+      sends.value(Pan2.ar(sig, pan), out, echoOut, verbOut, echo, verb);
+    }).add;
+
     // ----------------------------------------------------------- clap / rim
 
     // clap: four analog bursts of band-passed noise, then a tail of `decay`
@@ -398,7 +601,7 @@ Engine_Breakage : CroneEngine {
     }).add;
 
     // ---------------------------------------------------------------- hats
-    // brk_hat1..6 share args; once the hat counter passes `id` the hat is
+    // brk_hat1..9 share args; once the hat counter passes `id` the hat is
     // choked (gate 0, 12 ms release). closed hats get an id nothing reaches
 
     hatSrc = [
@@ -433,6 +636,21 @@ Engine_Breakage : CroneEngine {
       { |tn|
         var w = WhiteNoise.ar;
         (RHPF.ar(w, tn.linexp(0, 1, 5000, 9000), 0.3) * 0.6) + (BPF.ar(w, 9500, 1.2) * 0.4)
+      },
+      // dusty: high-passed noise, crushed and dulled
+      { |tn|
+        var w = HPF.ar(WhiteNoise.ar, tn.linexp(0, 1, 4000, 8000));
+        LPF.ar(Latch.ar(w, Impulse.ar(14000)).round(0.125), 9000) * 1.1
+      },
+      // click: a very high sine burst over a digital tick
+      { |tn|
+        (SinOsc.ar(tn.linexp(0, 1, 7000, 12000)) * 0.6) + (HPF.ar(Latch.ar(WhiteNoise.ar, Impulse.ar(18000)), 9000) * 0.5)
+      },
+      // disco: bright and sizzly, a couple of bell partials in it
+      { |tn|
+        var w = WhiteNoise.ar;
+        (BPF.ar(w, tn.linexp(0, 1, 8000, 12000), 0.5) * 1.1) + (HPF.ar(w, 10000) * 0.6)
+          + (Mix([5400, 7200].collect { |f| SinOsc.ar(f) }) * 0.05)
       }
     ];
     hatSrc.do { |src, i|
@@ -481,7 +699,7 @@ Engine_Breakage : CroneEngine {
     }).add;
 
     // ---------------------------------------------------------------- perc
-    // brk_perc1..10 share args: freq (hz), decay, pan
+    // brk_perc1..17 share args: freq (hz), decay, pan
 
     SynthDef(\brk_perc1, {   // conga
       arg out, echoOut, verbOut, amp=0.8, freq=220, decay=0.3, pan=0, echo=0, verb=0;
@@ -590,8 +808,84 @@ Engine_Breakage : CroneEngine {
       sends.value(Pan2.ar((sig * 0.7 * amp).clip2(1), pan), out, echoOut, verbOut, echo, verb);
     }).add;
 
+    SynthDef(\brk_perc11, {   // music box: a tine, a bright partial and a pin's tick
+      arg out, echoOut, verbOut, amp=0.8, freq=1046, decay=0.5, pan=0, echo=0, verb=0;
+      var f   = freq.clip(100, 6000);
+      var d   = decay.clip(0.05, 4);
+      var env = EnvGen.ar(Env.perc(0.001, d * 2.5, 1, -5), doneAction: 2);
+      var sig = (SinOsc.ar(f) + ((SinOsc.ar(f * 5.4) * 0.25) * EnvGen.ar(Env.perc(0.001, d * 0.3)))) * env * 0.5;
+      sig = sig + (HPF.ar(WhiteNoise.ar, 5000) * EnvGen.ar(Env.perc(0.0002, 0.003)) * 0.3);
+      sends.value(Pan2.ar(sig * amp, pan), out, echoOut, verbOut, echo, verb);
+    }).add;
+
+    SynthDef(\brk_perc12, {   // squeak: a toy's rising squeal with a wobble
+      arg out, echoOut, verbOut, amp=0.8, freq=660, decay=0.25, pan=0, echo=0, verb=0;
+      var f   = freq.clip(200, 4000);
+      var d   = decay.clip(0.05, 1);
+      var env = EnvGen.ar(Env([0, 1, 0.8, 0], [0.01, d * 0.6, d * 0.3], [0, 0, -4]), doneAction: 2);
+      var fm  = f * EnvGen.ar(Env([0.7, 1.3], [d], [2])) * (1 + (SinOsc.ar(18) * 0.03));
+      var sig = (SinOsc.ar(fm) + (SinOsc.ar(fm * 2) * 0.2)) * env * 0.45;
+      sends.value(Pan2.ar(sig * amp, pan), out, echoOut, verbOut, echo, verb);
+    }).add;
+
+    SynthDef(\brk_perc13, {   // talking drum: a pitch that rises under the hand and falls back
+      arg out, echoOut, verbOut, amp=0.8, freq=147, decay=0.4, pan=0, echo=0, verb=0;
+      var f    = freq.clip(40, 1500);
+      var d    = decay.clip(0.05, 2);
+      var env  = EnvGen.ar(Env.perc(0.001, d, 1, -4), doneAction: 2);
+      var pb   = EnvGen.ar(Env([1, 1.5, 1.2], [d * 0.25, d * 0.6], [2, -2]));
+      var body = SinOsc.ar(f * pb) * env;
+      var slap = BPF.ar(WhiteNoise.ar, (f * 5).clip(100, 12000), 0.4) * EnvGen.ar(Env.perc(0.0005, 0.01)) * 1.5;
+      var sig  = ((body * 1.2) + slap).tanh * 0.75 * amp;
+      sends.value(Pan2.ar(sig, pan), out, echoOut, verbOut, echo, verb);
+    }).add;
+
+    SynthDef(\brk_perc14, {   // wobble: a bass stab, a low-pass swept by an lfo
+      arg out, echoOut, verbOut, amp=0.8, freq=55, decay=0.35, pan=0, echo=0, verb=0;
+      var f   = freq.clip(30, 500);
+      var d   = decay.clip(0.05, 2);
+      var env = EnvGen.ar(Env([0, 1, 1, 0], [0.005, d, 0.03]), doneAction: 2);
+      var lfo = LFTri.ar(4.0 / d.max(0.1)).range(0, 1);
+      var sig = Saw.ar(f) + Saw.ar(f * 1.005);
+      sig = RLPF.ar(sig, (f * (1.5 + (lfo * 12))).clip(60, 8000), 0.2);
+      sig = (sig * 1.5).tanh * env * 0.6 * amp;
+      sends.value(Pan2.ar(sig, pan), out, echoOut, verbOut, echo, verb);
+    }).add;
+
+    SynthDef(\brk_perc15, {   // crackle: a burst of vinyl crackle, freq = how dense
+      arg out, echoOut, verbOut, amp=0.8, freq=80, decay=0.3, pan=0, echo=0, verb=0;
+      var d    = decay.clip(0.05, 1);
+      var env  = EnvGen.ar(Env.perc(0.001, d, 1, -3), doneAction: 2);
+      var pops = Decay.ar(Dust.ar(freq.clip(20, 400)), 0.002) * WhiteNoise.ar;
+      var sig  = (HPF.ar(pops, 600) * 3 * env * amp).clip2(1);
+      sends.value(Pan2.ar(sig, pan), out, echoOut, verbOut, echo, verb);
+    }).add;
+
+    SynthDef(\brk_perc16, {   // vox: a sung formant chop
+      arg out, echoOut, verbOut, amp=0.8, freq=220, decay=0.2, pan=0, echo=0, verb=0;
+      var f   = freq.clip(60, 1200);
+      var d   = decay.clip(0.03, 1);
+      var env = EnvGen.ar(Env([0, 1, 0.7, 0], [0.005, d * 0.6, d * 0.3], [0, -1, -4]), doneAction: 2);
+      var src = Saw.ar(f * (1 + (SinOsc.ar(5) * 0.01)));
+      var fm  = EnvGen.ar(Env([0.8, 1.2], [d], [0]));
+      var sig = (BPF.ar(src, 700 * fm, 0.15) + (BPF.ar(src, 1200 * fm, 0.12) * 0.7)) + (BPF.ar(src, 2600 * fm, 0.1) * 0.3);
+      sig = (sig * 3).tanh * env * 1.0 * amp;
+      sends.value(Pan2.ar(sig, pan), out, echoOut, verbOut, echo, verb);
+    }).add;
+
+    SynthDef(\brk_perc17, {   // syntom: an 80s electronic tom, a sine sweeping down
+      arg out, echoOut, verbOut, amp=0.8, freq=147, decay=0.35, pan=0, echo=0, verb=0;
+      var f   = freq.clip(40, 1500);
+      var d   = decay.clip(0.05, 2);
+      var env = EnvGen.ar(Env.perc(0.001, d, 1, -4), doneAction: 2);
+      var sw  = EnvGen.ar(Env([2.2, 1], [d * 0.5], [-3]));
+      var nz  = BPF.ar(WhiteNoise.ar, (f * 4).clip(100, 12000), 0.5) * EnvGen.ar(Env.perc(0.001, 0.03)) * 0.8;
+      var sig = (((SinOsc.ar(f * sw) * 1.2).tanh + nz) * env) * 0.7 * amp;
+      sends.value(Pan2.ar(sig, pan), out, echoOut, verbOut, echo, verb);
+    }).add;
+
     // ---------------------------------------------------------------- ticks
-    // brk_tick1..6 share args: freq, pan
+    // brk_tick1..8 share args: freq, pan
 
     SynthDef(\brk_tick1, {   // click
       arg out, echoOut, verbOut, amp=0.8, freq=3000, pan=0, echo=0, verb=0;
@@ -637,6 +931,20 @@ Engine_Breakage : CroneEngine {
       var f   = EnvGen.ar(Env([freq.clip(200, 12000), 40], [0.06], \exp));
       var env = EnvGen.ar(Env.perc(0.0005, 0.07, 1, -4), doneAction: 2);
       sends.value(Pan2.ar(SinOsc.ar(f) * env * 0.6 * amp, pan), out, echoOut, verbOut, echo, verb);
+    }).add;
+
+    SynthDef(\brk_tick7, {   // error: a stuttering digital fault, random pitches
+      arg out, echoOut, verbOut, amp=0.8, freq=3000, pan=0, echo=0, verb=0;
+      var env = EnvGen.ar(Env.linen(0.0005, 0.04, 0.005), doneAction: 2);
+      var f   = TExpRand.ar(300, freq.clip(400, 10000), Impulse.ar(150));
+      sends.value(Pan2.ar(Pulse.ar(f) * env * 0.4 * amp, pan), out, echoOut, verbOut, echo, verb);
+    }).add;
+
+    SynthDef(\brk_tick8, {   // pop: a vinyl pop
+      arg out, echoOut, verbOut, amp=0.8, freq=3000, pan=0, echo=0, verb=0;
+      var env = EnvGen.ar(Env.perc(0.0002, 0.02), doneAction: 2);
+      var sig = LPF.ar(Decay2.ar(Impulse.ar(0), 0.0002, 0.003) * WhiteNoise.ar * 4, freq.clip(500, 6000));
+      sends.value(Pan2.ar((sig * env * amp).clip2(1), pan), out, echoOut, verbOut, echo, verb);
     }).add;
 
     // ---------------------------------------------------------------- break
@@ -798,7 +1106,9 @@ Engine_Breakage : CroneEngine {
 
     this.addCommand(\kick, "ffffff", { |msg|
       Synth([\brk_kick_sub, \brk_kick_909, \brk_kick_808, \brk_kick_knock, \brk_kick_gabber,
-        \brk_kick_rave, \brk_kick_acoustic, \brk_kick_metal, \brk_kick_minipops].clipAt(msg[6].asInteger - 1), [
+        \brk_kick_rave, \brk_kick_acoustic, \brk_kick_metal, \brk_kick_minipops,
+        \brk_kick_dubstep, \brk_kick_click, \brk_kick_toy, \brk_kick_dusty, \brk_kick_tribal,
+        \brk_kick_808long, \brk_kick_simmons].clipAt(msg[6].asInteger - 1), [
         \out, dryBus.index, \amp, msg[1] * st[\kick_lvl],
         \tune, msg[2], \decay, msg[3], \drive, msg[4], \bend, msg[5]
       ], voiceGroup);
@@ -806,7 +1116,9 @@ Engine_Breakage : CroneEngine {
 
     this.addCommand(\snare, "fffffff", { |msg|
       Synth([\brk_snare_909, \brk_snare_drill, \brk_snare_808, \brk_snare_noise,
-        \brk_snare_acoustic, \brk_snare_jungle, \brk_snare_metal, \brk_snare_minipops].clipAt(msg[7].asInteger - 1), [
+        \brk_snare_acoustic, \brk_snare_jungle, \brk_snare_metal, \brk_snare_minipops,
+        \brk_snare_dubstep, \brk_snare_click, \brk_snare_toy, \brk_snare_dusty, \brk_snare_frame,
+        \brk_snare_disco, \brk_snare_simmons].clipAt(msg[7].asInteger - 1), [
         \out, mainBus.index, \echoOut, echoBus.index, \verbOut, verbBus.index,
         \amp, msg[1] * st[\snare_lvl], \tune, msg[2], \decay, msg[3], \tone, msg[4],
         \pan, msg[5], \bend, msg[6],
@@ -837,7 +1149,7 @@ Engine_Breakage : CroneEngine {
       var open = decay > 0.15;
       hatCount = hatCount + 1;
       chokeBus.subBus(0).set(hatCount);
-      Synth([\brk_hat1, \brk_hat2, \brk_hat3, \brk_hat4, \brk_hat5, \brk_hat6].clipAt(msg[5].asInteger - 1), [
+      Synth([\brk_hat1, \brk_hat2, \brk_hat3, \brk_hat4, \brk_hat5, \brk_hat6, \brk_hat7, \brk_hat8, \brk_hat9].clipAt(msg[5].asInteger - 1), [
         \out, mainBus.index, \echoOut, echoBus.index, \verbOut, verbBus.index,
         \chokeBus, chokeBus.index, \id, if(open, { hatCount }, { 1e9 }),
         \amp, msg[1] * st[\hat_lvl], \decay, decay, \tone, msg[3], \pan, msg[4],
@@ -872,7 +1184,8 @@ Engine_Breakage : CroneEngine {
 
     this.addCommand(\perc, "fffff", { |msg|
       Synth([\brk_perc1, \brk_perc2, \brk_perc3, \brk_perc4, \brk_perc5,
-        \brk_perc6, \brk_perc7, \brk_perc8, \brk_perc9, \brk_perc10].clipAt(msg[5].asInteger - 1), [
+        \brk_perc6, \brk_perc7, \brk_perc8, \brk_perc9, \brk_perc10,
+        \brk_perc11, \brk_perc12, \brk_perc13, \brk_perc14, \brk_perc15, \brk_perc16, \brk_perc17].clipAt(msg[5].asInteger - 1), [
         \out, mainBus.index, \echoOut, echoBus.index, \verbOut, verbBus.index,
         \amp, msg[1] * st[\perc_lvl], \freq, msg[2], \decay, msg[3], \pan, msg[4],
         \echo, st[\perc_echo], \verb, st[\perc_verb]
@@ -880,7 +1193,7 @@ Engine_Breakage : CroneEngine {
     });
 
     this.addCommand(\tick, "ffff", { |msg|
-      Synth([\brk_tick1, \brk_tick2, \brk_tick3, \brk_tick4, \brk_tick5, \brk_tick6].clipAt(msg[2].asInteger - 1), [
+      Synth([\brk_tick1, \brk_tick2, \brk_tick3, \brk_tick4, \brk_tick5, \brk_tick6, \brk_tick7, \brk_tick8].clipAt(msg[2].asInteger - 1), [
         \out, mainBus.index, \echoOut, echoBus.index, \verbOut, verbBus.index,
         \amp, msg[1] * st[\tick_lvl], \freq, msg[3], \pan, msg[4],
         \echo, st[\tick_echo], \verb, st[\tick_verb]

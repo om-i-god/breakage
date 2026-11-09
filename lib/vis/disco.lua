@@ -1,23 +1,38 @@
 -- disco. view 1: a light-up dance floor of square tiles in perspective, a mirror ball throwing moving spots, dancers silhouetted against the wall.
 -- view 2: a 70s light show: colour-wheel spotlights as grey beams, a glitter curtain shimmering with the hats, a string section swelling below.
+-- view 3: the mirror ball close up: a turning sphere of facets, glints sliding over it, rays fanning out across the room and a crowd's heads below.
 --
 -- view 1: each voice lights the tiles its own way: the kick a diamond that
 -- spreads out from the middle, the snare a row sweeping toward us, claps a
--- diagonal, hats a single tile here and there (open hats two), tambourine
--- a column twinkling, congas and bongos the side tiles, a ratchet a chase
--- along a row, a fill a wave over the whole floor. the mirror ball turns
--- and throws spots over the wall and the floor; the dancers bob on the beat
--- and throw their arms up on the claps. out_amp lights the wall, out_lo
--- glows the middle tiles, out_mid rims the dancers and warms the wall,
--- out_hi sparkles the ball and its spots. energy brings more dancers and
--- quickens the ball, chaos scatters tiles and doubles the spots, kickless
--- stretches leave a slow chase going round the floor's edge.
+-- diagonal, closed hats a single tile here and there, open hats a little
+-- cross, tambourine a column twinkling, congas and bongos the side tiles, a
+-- ratchet a chase along a row, a fill a wave over the whole floor. under the
+-- hits the floor runs a slow program that changes each bar (checks, stripes,
+-- rings, diagonals) and grows brighter through the phrase. the mirror ball
+-- turns and throws spots and dim rays over the wall and the floor; the
+-- dancers bob on the beat and throw their arms up on the claps. out_amp
+-- lights the wall, out_lo glows the middle tiles, out_mid rims the dancers
+-- and warms the wall, out_hi sparkles the ball, its spots and the smoke
+-- under the ceiling. energy brings more dancers and quickens the ball, chaos
+-- scatters tiles and doubles the spots, kickless stretches leave a slow
+-- chase going round the floor's edge and let the program fade.
 -- view 2: the kick pulses the beams, the snare clicks the colour wheels on
 -- (each gel a grey), claps swing the beams, congas cross them; hats and the
--- tambourine run glitter down the curtain; out_mid swells the strings (the
--- bows saw wider and the stage wash behind them lifts); out_lo lights the
--- stage floor, out_amp the beams, out_hi the glitter. chaos sends the beams
--- wild, kickless stretches let the strings carry it alone.
+-- tambourine run glitter down the curtain (open hats long strands), and
+-- more of its sequins stay lit as the phrase goes on; out_mid swells the strings (the bows saw wider and the
+-- stage wash behind them lifts); out_lo lights the stage floor, out_amp the
+-- beams, out_hi the glitter. chaos sends the beams wild, kickless stretches
+-- let the strings carry it alone.
+-- view 3: the kick flashes the key light across the ball's lit side and
+-- bobs the crowd, the snare bursts the rays brighter and longer, claps put
+-- the crowd's hands up, closed hats twinkle single facets, open hats sweep
+-- a column of them, congas flare the spots on the side walls, ratchets spin
+-- the rays round, a fill runs a spiral of glints over the whole ball. the
+-- rays multiply through the phrase and the spots on the walls shift each
+-- bar. out_lo swells the ball and its halo, out_mid the rays, out_hi the
+-- glints and the spots, out_amp the crowd's rims and the room. chaos
+-- scatters the facets and splits the rays, kickless stretches slow the ball
+-- under a single pin spot.
 return function(K)
   local M = {}
   local put, line, A, clamp = K.put, K.line, K.A, K.clamp
@@ -40,6 +55,11 @@ return function(K)
   -- view 2
   local beams, wheel, glit, pulse, swing2
   local ps
+  -- the floor's program (view 1)
+  local bars, prog
+  -- view 3
+  local tw3, keyl, rayb, rspin, rrot, wallf, spiral, cols3, bob3
+  local bowph, cph, kls = 0, 0, 0
 
   function M.init()
     tile = {}
@@ -54,6 +74,8 @@ return function(K)
     }
     wheel, glit, pulse, swing2 = 0, {}, 0, 0
     ps = 0
+    bars, prog = 0, 0
+    tw3, keyl, rayb, rspin, rrot, wallf, spiral, cols3, bob3 = {}, 0, 0, 0, 0, {0, 0}, -9, {}, 0
   end
   M.clear = M.init
 
@@ -69,10 +91,10 @@ return function(K)
     waves[#waves + 1] = {kind = kind, t0 = K.T, v = v, c0 = c0 or 0, r0 = r0 or 0}
   end
 
-  local function sparkle(n, v)
+  local function sparkle(n, v, long)
     for k = 1, n do
       if #glit >= 24 then table.remove(glit, 1) end
-      glit[#glit + 1] = {x = 2 + floor(K.rnd() * 25) * 5, y0 = K.rnd() * 20, t0 = K.T, v = v}
+      glit[#glit + 1] = {x = 2 + floor(K.rnd() * 25) * 5, y0 = K.rnd() * 20, t0 = K.T, v = v, h = long and 5 or 2}
     end
   end
 
@@ -80,6 +102,8 @@ return function(K)
     v = K.num(v, 1)
     wave("diamond", v, 3.5, 2)
     pulse = 1
+    keyl = max(keyl, 0.6 + 0.4 * v)
+    bob3 = 1
   end
 
   function M.snare(v, n)
@@ -87,6 +111,7 @@ return function(K)
     wave("row", v)
     wheel = wheel + 1
     swing2 = swing2 + 0.5
+    rayb = max(rayb, 0.6 + 0.4 * v)
   end
 
   function M.clap(v)
@@ -98,9 +123,19 @@ return function(K)
 
   function M.hat(v, open)
     v = K.num(v, 1)
-    local n = open and 2 or 1
-    for k = 1, n do lightt(floor(K.rnd() * NC), floor(K.rnd() * NR), 0.25 + 0.2 * v) end
-    sparkle(open and 4 or 2, 0.6 + 0.4 * v)
+    local c0, r0 = floor(K.rnd() * NC), floor(K.rnd() * NR)
+    if open then
+      lightt(c0, r0, 0.45 + 0.2 * v)
+      lightt(c0 - 1, r0, 0.3); lightt(c0 + 1, r0, 0.3); lightt(c0, r0 - 1, 0.3); lightt(c0, r0 + 1, 0.3)
+      if #cols3 < 4 then cols3[#cols3 + 1] = {t0 = K.T, a = K.rnd() * 0.8 - 0.4, v = v} end
+    else
+      lightt(c0, r0, 0.25 + 0.2 * v)
+      for k = 1, 2 do
+        if #tw3 >= 14 then table.remove(tw3, 1) end
+        tw3[#tw3 + 1] = {j = floor(K.rnd() * 9) - 4, a = K.rnd() * 1.4 - 0.7, t0 = K.T, v = v}
+      end
+    end
+    sparkle(open and 4 or 2, 0.6 + 0.4 * v, open)
   end
   function M.ride(v) M.hat(K.num(v, 1) * 0.7, true) end
   function M.rim(v) lightt(floor(K.rnd() * NC), NR - 1, 0.6 * K.num(v, 1)) end
@@ -115,9 +150,13 @@ return function(K)
       for r = 0, NR - 1 do lightt(side, r, (0.5 + 0.4 * v) * (1 - r * 0.1)) end
       beams[1].va = beams[1].va + 1.5 * v
       beams[3].va = beams[3].va - 1.5 * v
+      local w = side == 0 and 1 or 2
+      wallf[w] = max(wallf[w], 0.5 + 0.5 * v)
     else
       lightt(floor(K.rnd() * NC), floor(K.rnd() * NR), 0.6 * v)
       sparkle(2, v * 0.7)
+      if #tw3 >= 14 then table.remove(tw3, 1) end
+      tw3[#tw3 + 1] = {j = floor(K.rnd() * 9) - 4, a = K.rnd() * 1.4 - 0.7, t0 = K.T, v = v}
     end
   end
   function M.tom(v) M.perc(1, K.num(v, 1)) end
@@ -136,12 +175,24 @@ return function(K)
     waves[#waves].n = n
     sparkle(n, 1)
     swing2 = swing2 + 1
+    rspin = rspin + n * 0.35
   end
 
   function M.fill()
     wave("fill", 1)
     arms = 1
     wheel = wheel + 2
+    spiral = K.T
+  end
+
+  function M.bar()
+    bars = bars + 1
+  end
+
+  local function phrase()
+    local S = K.S or {}
+    local len = max(1, K.num(S.phrase_len, 16))
+    return clamp(K.num(S.phrase_pos, 0) / len + K.bar_ph / len, 0, 1)
   end
 
   -- the waves light the tiles they pass
@@ -210,6 +261,19 @@ return function(K)
       else cc, rr = 0, NR - 1 - (p - 2 * NC - NR + 3) end
       lightt(cc, rr, 0.5 * kl)
     end
+    -- the floor's program: a pattern for each bar, under the hits,
+    -- brighter through the phrase, fading in the kickless stretches
+    prog = K.follow(prog, (0.1 + e * 0.08 + phrase() * 0.12 + hi * 0.06) * (1 - kl * 0.7) * (K.playing and 1 or 0.6), 0.5, DT)
+    local pk = bars % 4
+    local beat = floor(K.beat_ph * 4 + K.bar_ph * 16) % 2
+    for r = 0, NR - 1 do for cc = 0, NC - 1 do
+      local on
+      if pk == 0 then on = (r + cc + beat) % 2 == 0
+      elseif pk == 1 then on = (cc + floor(T * 2)) % 3 == 0
+      elseif pk == 2 then on = floor(abs(cc - 3.5) + abs(r - 2) - T * 3) % 3 == 0
+      else on = (cc - r + floor(T * 3)) % 4 == 0 end
+      if on then lightt(cc, r, prog * (0.8 + 0.4 * K.duck)) end
+    end end
     -- chaos: stray tiles
     if c > 0.3 and K.rnd() < c * 1.0 * K.SP then lightt(floor(K.rnd() * NC), floor(K.rnd() * NR), c * 0.6) end
 
@@ -256,6 +320,8 @@ return function(K)
       local fy = by - 3 + (k % 4) * 2
       if sin(a) > 0 then put(3 + hi * 8 * (0.5 + 0.5 * sin(T * 6 + k)), fx, fy, 1, 1) end
     end
+    -- smoke under the ceiling catching the light, and the ball's rays
+    K.haze(0, 0, 128, WY0 - 1, 0.15 + hi * 0.2 + e * 0.1, 1 + hi * 0.6, T * 4)
     local nsp = c > 0.4 and 18 or 12
     for k = 0, nsp - 1 do
       local a = rot + k * K.TAU / 12 + (k >= 12 and 0.26 or 0)
@@ -263,7 +329,10 @@ return function(K)
       if s > -0.2 then
         local x = 64 + cos(a) * 80
         local y = (k % 3 == 0) and (WY0 + 3 + (k % 5) * 3) or (YS[1] + 3 + (k % 4) * 6)
-        if x > 0 and x < 127 then put(2 + hi * 8 + s * 2 + K.env.kick * 4, x, y, 3, 1) end
+        if x > 0 and x < 127 then
+          put(2 + hi * 8 + s * 2 + K.env.kick * 4, x, y, 3, 1)
+          if k % 3 == 1 then line((0.8 + hi * 1.2 + s * 0.5) * (1 - kl * 0.5), bx, by + 2, x + 1, y) end
+        end
       end
     end
 
@@ -306,6 +375,7 @@ return function(K)
     swing2 = swing2 * math.exp(-DT / 0.5)
     ps = K.follow(ps, pulse, 0.1, DT)
     local sw = mid * (0.6 + kl * 0.4)
+    bowph = bowph + K.DTS * (3 + sw * 3)
 
     -- the glitter curtain: strands, their sequins catching the light
     for x = 2, 125, 5 do
@@ -317,10 +387,11 @@ return function(K)
       local age = T - G.t0
       local y = G.y0 + age * 40
       if age > 0.7 or y > SY - 8 then table.remove(glit, i)
-      else put(min(12, 3 + G.v * 7 * (1 - age / 0.7) + hi * 2), G.x, y, 1, 2) end
+      else put(min(12, 3 + G.v * 7 * (1 - age / 0.7) + hi * 2), G.x, y, 1, G.h or 2) end
     end
-    -- standing shimmer: the highs keep a few sequins lit
-    for k = 0, 11 do
+    -- standing shimmer: the highs keep a few sequins lit, more of them as
+    -- the phrase goes on
+    for k = 0, 7 + floor(phrase() * 10) do
       local x = 2 + floor(K.hash(k + floor(T * 3) * 13, 5) * 25) * 5
       local y = floor(K.hash(k + floor(T * 3) * 13, 6) * (SY - 10))
       put(2 + hi * 7, x, y, 1, 1)
@@ -331,7 +402,7 @@ return function(K)
       b.va = b.va + (-(b.a - (i - 2) * -0.3) * 1.5 - b.va * 1.2) * DT + (K.rnd() - 0.5) * c * 6 * DT
       b.a = clamp(b.a + (b.va + sin(T * 0.4 + i * 2.1) * (0.25 + swing2 * 0.6)) * K.DTS, -0.9, 0.9)
       local g = GEL[(floor(wheel) + b.g) % #GEL + 1]
-      local l = (g * 0.5 + amp * 1.0 + ps * 3 + e * 0.4)
+      local l = (g * 0.45 + amp * 0.8 + ps * 2.2 + e * 0.4)
       local len = 48 + lo * 6
       local ex, ey = b.x + sin(b.a) * len, 1 + cos(b.a) * len
       for k = -1, 1 do
@@ -358,7 +429,7 @@ return function(K)
       local px = 10 + (i - 1) * 21.5
       local cello = i % 3 == 0
       local sway = sin(T * 1.2 + i) * (1 + sw * 1.5)
-      local rim = 1.5 + mid * 2.5 + kl * 1.5
+      local rim = 1.5 + mid * 2 + kl * 1.5
       put(1, px - 4 + sway * 0.4, SY + 3, 9, 63 - SY - 3)
       -- the head and the shoulders, outlined by the wash behind them
       K.ring(rim, px + sway * 0.5, SY - 2, 2.6, 8)
@@ -366,7 +437,7 @@ return function(K)
       line(rim, px + 5 + sway * 0.3, SY + 4, px + 2 + sway * 0.5, SY + 1)
       line(rim * 0.7, px - 5, SY + 4, px - 6, 63)
       line(rim * 0.7, px + 5, SY + 4, px + 6, 63)
-      local bow = sin(T * (3 + sw * 3) + i * 1.3) * (3 + sw * 6)
+      local bow = sin(bowph + i * 1.3) * (3 + sw * 6)
       if cello then
         K.ring(rim, px + 7, SY + 12, 4, 10, 0, K.TAU, 1.4)
         line(rim, px + 7, SY + 6, px + 7, SY - 2)
@@ -378,9 +449,156 @@ return function(K)
     end
   end
 
+
+  ---------------------------------------------------------------- view 3
+  local BX, BY = 64, 26
+
+  local function draw3(S)
+    local T, DT, e, c, kl = K.T, K.DT, K.energy, K.chaos, K.kickless
+    local lo, mid, hi, amp = A[K.LO], A[K.MID], A[K.HI], A[K.AMP]
+    keyl = keyl * math.exp(-DT / 0.2)
+    kls = K.follow(kls, keyl, 0.07, DT)
+    rayb = rayb * math.exp(-DT / 0.25)
+    rspin = rspin * math.exp(-DT / 0.6)
+    bob3 = bob3 * math.exp(-DT / 0.18)
+    wallf[1] = wallf[1] * math.exp(-DT / 0.3)
+    wallf[2] = wallf[2] * math.exp(-DT / 0.3)
+    local ph = phrase()
+    cph = cph + K.DTS * (0.5 + kl * 0.4)
+    rrot = rrot + K.DTS * ((0.35 + e * 0.35) * (1 - kl * 0.6) + rspin)
+    local R = 19 + lo * 1.2
+    local LA = -0.7                              -- the key light, from upper left
+
+    -- the room: spots wheeling across the back wall, brighter on the sides
+    -- the congas flare; they shift each bar
+    for k = 0, 23 do
+      local el = K.hash(k, 81)
+      local x = (K.hash(k, 82) * 180 + rrot * (30 + el * 20) + bars * 7) % 180 - 26
+      local y = 2 + el * 44
+      local d = ((x - BX) / 64) ^ 2 + ((y - BY) / 30) ^ 2
+      if d > 0.18 and x > 0 and x < 127 then
+        local side = x < 64 and 1 or 2
+        local l = (1 + hi * 2.5 + amp * 0.8 + wallf[side] * 6) * (1 - kl * 0.5)
+        put(l, x, y, 2, 1)
+      end
+    end
+    -- the halo round the ball
+    K.ring(1 + lo * 2.5 + kls * 1.5, BX, BY, R + 4, 24)
+    K.ring(1 + lo * 1.2, BX, BY, R + 8 + lo * 1.5, 24, 0, K.TAU, 1, 0.8, 3)
+    line(2, BX, 0, BX, BY - R)
+    put(3, BX - 2, BY - R - 1, 5, 1)
+
+    -- the rays: from glints on the lit side out across the room; more of
+    -- them through the phrase, burst on the snare, split by chaos
+    local nr = floor(4 + ph * 4 + e * 2)
+    for k = 0, nr - 1 do
+      local a = rrot * 0.25 + k * K.TAU / nr + K.hash(k, 83) * 0.3
+      local ca, sa = cos(a), sin(a)
+      local r0 = R + 1
+      local len = 30 + mid * 30 + rayb * 30
+      local l = (0.8 + mid * 1.6 + rayb * 3.5 + e * 0.3) * (1 - kl * 0.6) * (0.6 + 0.4 * K.hash(k, 84))
+      line(l, BX + ca * r0, BY + sa * r0 * 0.9, BX + ca * (r0 + len), BY + sa * (r0 + len) * 0.9)
+      if c > 0.4 then
+        local b = a + 0.12 * c
+        line(l * 0.5, BX + cos(b) * r0, BY + sin(b) * r0 * 0.9, BX + cos(b) * (r0 + len * 0.7), BY + sin(b) * (r0 + len * 0.7) * 0.9)
+      end
+    end
+    -- kickless: a pin spot from the top left onto the ball
+    if kl > 0.1 then
+      line(kl * 3, 0, 0, BX - R * 0.7, BY - R * 0.7)
+      line(kl * 2, 8, 0, BX - R * 0.3, BY - R * 0.9)
+      line(kl * 2, 0, 8, BX - R * 0.9, BY - R * 0.3)
+    end
+
+    -- the ball: rows of facets turning; each lit by the key light, a
+    -- glint where a facet faces it, twinkles from the hats
+    local fill_u = T - spiral
+    for j = -4, 4 do
+      local lat = j * 0.33
+      local cl = cos(lat)
+      local y = BY + math.sin(lat) * R * 0.95
+      local rr = cl * R
+      local n = max(4, floor(22 * cl))
+      for i = 0, n - 1 do
+        local lon = (i + (j % 2) * 0.5) / n * K.TAU + rrot
+        local dz = cos(lon)
+        if dz > 0.1 then
+          local sx = math.sin(lon)
+          local x = BX + sx * rr
+          local yy = y
+          if c > 0.3 then
+            x = x + (K.hash(i * 9 + j, 85) - 0.5) * c * 4
+            yy = yy + (K.hash(i * 9 + j, 86) - 0.5) * c * 3
+          end
+          -- facing the light (upper left): brighter
+          local f = clamp(-sx * 0.6 - math.sin(lat) * 0.5 + dz * 0.4, 0, 1)
+          local l = 1 + f * (1.5 + amp * 1.2 + kls * 2) + dz * 0.5
+          local sp = sx - LA * 0.6
+          local g = math.exp(-((sp + 0.35) ^ 2 + (lat + 0.3) ^ 2) * 12)
+          l = l + g * (3 + hi * 4)
+          if fill_u >= 0 and fill_u < 1.2 then
+            local wv = (j + 4) / 8 * 0.6 + ((lon % K.TAU) / K.TAU) * 0.6
+            l = l + max(0, 1 - abs(fill_u - wv) * 8) * 7
+          end
+          local w = max(1, floor(rr * K.TAU / n * dz - 1.2))
+          put(min(12, l), x - w / 2, yy - 1, w, 3)
+        end
+      end
+    end
+    -- the twinkles and the open hats' sweeping columns
+    for t = #tw3, 1, -1 do
+      local W = tw3[t]
+      local age = T - W.t0
+      if age > 0.3 then table.remove(tw3, t)
+      else
+        local lat = W.j * 0.33
+        local x = BX + math.sin(W.a) * cos(lat) * R
+        local y = BY + math.sin(lat) * R * 0.95
+        local l = (6 + 6 * W.v) * (1 - age / 0.3)
+        put(l, x - 1, y - 1, 2, 2)
+        if l > 6 then line(l * 0.5, x - 3, y, x + 3, y); line(l * 0.5, x, y - 3, x, y + 3) end
+      end
+    end
+    for t = #cols3, 1, -1 do
+      local C = cols3[t]
+      local age = T - C.t0
+      if age > 0.45 then table.remove(cols3, t)
+      else
+        local a = C.a + age * 1.5
+        for j = -4, 4 do
+          local lat = j * 0.33
+          local x = BX + math.sin(a) * cos(lat) * R
+          local y = BY + math.sin(lat) * R * 0.95
+          put((4 + 6 * C.v) * (1 - age / 0.45), x - 1, y - 1, 2, 2)
+        end
+      end
+    end
+
+    -- the crowd: heads and shoulders along the bottom, rims lit by the
+    -- ball, bobbing on the beat; hands up on the claps
+    local up = max(arms, K.env.clap)
+    for i = 0, 10 do
+      local x = 4 + i * 12 + K.hash(i, 87) * 5 + sin(cph + i) * (1 + kl * 2)
+      local b = abs(sin(K.TAU * K.beat_ph * 0.5 + i * 0.9)) * (0.8 + lo * 0.8) + bob3 * K.hash(i, 88) * 1.2
+      local hy = 54 + K.hash(i, 89) * 4 - b
+      local rl = (1.5 + amp * 2.5 + kls * 1.2) * (0.7 + 0.3 * K.hash(i, 90))
+      K.disc(1, x, hy + 1, 3)
+      K.ring(rl, x, hy, 3, 8, PI, K.TAU)
+      line(rl * 0.7, x - 3, hy, x - 3, hy + 2)
+      line(rl * 0.7, x + 3, hy, x + 3, hy + 2)
+      line(rl * 0.8, x - 3, hy + 3, x - 7, hy + 6)
+      line(rl * 0.8, x + 3, hy + 3, x + 7, hy + 6)
+      if up > 0.3 and i % 2 == 0 then
+        line(rl + up * 3, x - 5, hy + 4, x - 7, hy - 6 * up)
+        line(rl + up * 3, x + 5, hy + 4, x + 7, hy - 6 * up)
+      end
+    end
+    K.grain(function(u, v) return BX - R + u * R * 2, BY - R + v * R * 2 end, 2 + hi * 14, 5 + hi * 5)
+  end
+
   function M.draw(S)
     arms = arms * math.exp(-K.DT / 0.35)
-    if K.view == 2 then draw2(S) else draw1(S) end
+    if K.view == 2 then draw2(S) elseif K.view == 3 then draw3(S) else draw1(S) end
   end
 
   M.init()

@@ -37,7 +37,8 @@ end
 local NAMES = {"dub", "house", "acid", "analord", "syro", "broken", "drill", "gabber",
   "ambient", "rave", "jungle", "industrial", "acoustic", "minipops",
   "techno", "dubstep", "breakcore", "glitch", "toy", "boombap", "tribal", "garage",
-  "footwork", "trap", "disco", "motorik"}
+  "footwork", "trap", "disco", "motorik",
+  "trance", "hardstyle", "amapiano", "gqom", "baile", "jersey", "phonk", "synthwave"}
 
 -- one 16th of the groove. o: kick, snare, hats, perc, ticks, brk, ratchet
 -- (probability per step of a burst), glitch, energy
@@ -61,7 +62,7 @@ local function groove(S, VIS, k, o)
   end
   if o.ride and s % 4 == 1 then VIS.event("ride", 0.5) end
   if o.perc then
-    if s % 3 == 1 then VIS.event("perc", (s % 17) + 1, 0.7) end
+    if s % 3 == 1 then VIS.event("perc", ((s + S.bar * 6) % 21) + 1, 0.7) end
     if s == 11 then VIS.event("tom", 0.8, 110) end
     if s == 9 then VIS.event("shaker", 0.5) end
   end
@@ -166,6 +167,9 @@ local function run(theme, scen, opts)
   if opts.view then PV.vis_view = opts.view end
   if opts.shake then PV.vis_shake = opts.shake end
   if opts.react then PV.vis_react = opts.react end
+  for _, kk in ipairs({"mirror", "trails", "zoom", "contrast"}) do
+    if opts[kk] then PV["vis_" .. kk] = opts[kk] end
+  end
   local VIS = include("lib/visuals")
   VIS.init()
   math.randomseed(opts.seed or 11)
@@ -270,25 +274,62 @@ for th, name in ipairs(NAMES) do
       end)
     end
 
-    -- the second view: its own picture, inside the same budgets
-    test("visuals " .. name .. " view 2", function()
-      for _, sc in ipairs({"silence", "peak", "chaos", "kickless"}) do
-        local st = run(th, sc, {view = 2, shake = 2})
-        assert(st.bad == 0, sc .. ": " .. st.bad .. " NaN / inf")
-        assert(st.ops_max <= OPS_BUDGET, sc .. ": draw calls " .. st.ops_max)
-        assert(st.lit_max <= LIT_MAX, string.format("%s: lit %.3f", sc, st.lit_max))
-        assert(st.lit_min > (sc == "silence" and LIT_MIN_SILENT or LIT_MIN_LIVE),
-          string.format("%s: near blank %.4f", sc, st.lit_min))
-        assert(st.diff_max <= DIFF_MAX, string.format("%s: frame jump %.3f", sc, st.diff_max))
-        assert(st.l15_max <= L15_MAX, sc .. ": " .. st.l15_max .. " pixels at 15")
+    -- the second and third views: each its own picture, inside the same budgets
+    for _, vw in ipairs({2, 3}) do
+      test("visuals " .. name .. " view " .. vw, function()
+        for _, sc in ipairs({"silence", "peak", "chaos", "kickless"}) do
+          local st = run(th, sc, {view = vw})
+          assert(st.bad == 0, sc .. ": " .. st.bad .. " NaN / inf")
+          assert(st.ops_max <= OPS_BUDGET, sc .. ": draw calls " .. st.ops_max)
+          assert(st.lit_max <= LIT_MAX, string.format("%s: lit %.3f", sc, st.lit_max))
+          assert(st.lit_min > (sc == "silence" and LIT_MIN_SILENT or LIT_MIN_LIVE),
+            string.format("%s: near blank %.4f", sc, st.lit_min))
+          assert(st.diff_max <= DIFF_MAX, string.format("%s: frame jump %.3f", sc, st.diff_max))
+          assert(st.l15_max <= L15_MAX, sc .. ": " .. st.l15_max .. " pixels at 15")
+        end
+        -- kick shake moves every pixel on the kick, like kick zoom: no jump limit
+        for _, sc in ipairs({"peak", "chaos"}) do
+          local st = run(th, sc, {view = vw, shake = 3, frames = 160})
+          assert(st.bad == 0, sc .. " shaken: NaN / inf")
+          assert(st.ops_max <= OPS_BUDGET, sc .. " shaken: draw calls " .. st.ops_max)
+          assert(st.lit_max <= LIT_MAX + 0.02, string.format("%s shaken: lit %.3f", sc, st.lit_max))
+        end
+        local b = run(th, "mid", {frames = 120, keep = true, view = vw})
+        for ov = 1, vw - 1 do
+          local a = run(th, "mid", {frames = 120, keep = true, view = ov})
+          local d = 0
+          for i = 21, 120 do d = d + bufdiff(a.frames[i], b.frames[i]) end
+          d = d / 100
+          if REPORT then print(string.format("view  %-9s %d vs %d differs %.3f", name, vw, ov, d)) end
+          assert(d > 0.05, string.format("view %d looks like view %d: %.4f", vw, ov, d))
+        end
+        -- every view moves at silence and pulses
+        local st = run(th, "silence", {frames = 100, keep = true, view = vw})
+        local moved = 0
+        for i = 22, 100 do if bufdiff(st.frames[i - 1], st.frames[i]) > 0 then moved = moved + 1 end end
+        assert(moved >= 60, "view " .. vw .. " frozen at silence: " .. moved .. " of 79")
+      end)
+    end
+
+    -- the post options (mirror, trails, zoom, contrast) stay inside the budgets
+    test("visuals " .. name .. " post options", function()
+      local combos = {
+        {mirror = 4, trails = 10, contrast = 1},
+        {mirror = 2, trails = 5, contrast = 3, view = 2},
+        -- kick zoom moves every pixel on the kick, like hard shake: no jump limit
+        {mirror = 3, trails = 3, zoom = 3, contrast = 2, view = 3},
+      }
+      for ci, o in ipairs(combos) do
+        for _, sc in ipairs({"silence", "peak", "chaos"}) do
+          local st = run(th, sc, {mirror = o.mirror, trails = o.trails, zoom = o.zoom,
+            contrast = o.contrast, view = o.view, frames = 160})
+          assert(st.bad == 0, ci .. " " .. sc .. ": NaN / inf")
+          assert(st.lit_max <= 0.5, string.format("%d %s: lit %.3f", ci, sc, st.lit_max))
+          assert(st.lit_min > 0.004, string.format("%d %s: near blank %.4f", ci, sc, st.lit_min))
+          assert(o.zoom or st.diff_max <= 0.9, string.format("%d %s: frame jump %.3f", ci, sc, st.diff_max))
+          assert(st.l15_max <= 40, ci .. " " .. sc .. ": " .. st.l15_max .. " at 15")
+        end
       end
-      local a = run(th, "mid", {frames = 120, keep = true})
-      local b = run(th, "mid", {frames = 120, keep = true, view = 2})
-      local d = 0
-      for i = 21, 120 do d = d + bufdiff(a.frames[i], b.frames[i]) end
-      d = d / 100
-      if REPORT then print(string.format("view  %-9s differs %.3f", name, d)) end
-      assert(d > 0.05, string.format("view 2 looks like view 1: %.4f", d))
     end)
 
     test("visuals " .. name .. " moves at silence", function()

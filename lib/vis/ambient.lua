@@ -2,6 +2,8 @@
 -- horizon with its path broken on the water, cloud strata drifting over.
 -- view 2: aurora curtains folding over a dark ridge and a lake that holds
 -- their light, stars above.
+-- view 3: pines in mist under a rising moon, ridge behind ridge of firs,
+-- fog lying in the folds between them.
 --
 -- view 1: the kick swells the sun and lifts a slow swell across the tide
 -- lines; snares drop rings on the water that spread for seconds; hats,
@@ -9,18 +11,32 @@
 -- a ratchet skips a stone across the water; a fill sends birds over. energy
 -- warms the sky and brings in more tide lines, chaos breaks the sun's path
 -- into several and doubles the sun as a mirage, and kickless stretches let
--- the sun sink and the stars come out.
+-- the sun sink and the stars come out. open hats stand a long streak of
+-- light on the sun's path, closed hats a short one; each bar a slow swell
+-- runs in through the tide lines, and the sun settles and the sky warms
+-- over the phrase.
 -- view 2: the kick swells the curtains, a snare sends a fold along them, hats
 -- and rides shimmer rays up through them, percussion throws a falling star,
 -- a ratchet runs a train of rays, a fill surges the whole sky. energy adds a
 -- second curtain and height, chaos tears and kinks them, kickless fades them
--- to one faint band.
+-- to one faint band. open hats send tall rays, closed hats short ones; each
+-- bar a soft brightening runs along the foot; the curtains climb over the
+-- phrase.
+-- view 3: the kick swells the moon's halo and the fog, a snare sends a
+-- sweep of moonlight along the fog banks, hats light fireflies in the near
+-- trees (an open hat a pair), congas and toms open an owl's eyes, cowbell
+-- and clave light a lantern on the far ridge, a ratchet sends a string of
+-- fireflies climbing, a fill brings wind through the firs and surges the
+-- fog. the moon rises over the phrase. energy clears the ridges and adds
+-- fog banks, chaos sways the firs and ghosts a second moon, kickless
+-- thickens the ground fog and dims the moon.
 --
 -- the ears: view 1, the lows warm the sun's glow and the water near the
 -- shore, the mids light the clouds' bellies and the tide lines, the highs
 -- shake the sun's path into glints; view 2, the lows brighten the curtains,
 -- the mids raise and light their rays, the highs shimmer the foot, the ray
--- tips, the stars and the lake.
+-- tips, the stars and the lake; view 3, the lows the moon and the fog,
+-- the mids the ridges, the highs the stars, the mist and the firs' rims.
 return function(K)
   local M = {}
   local put, line, A, clamp = K.put, K.line, K.A, K.clamp
@@ -47,12 +63,16 @@ return function(K)
   local rings, stars, birds, rays, falls
   local swell, sw_s                     -- the kick's swell, eased
   local glint, sink, surge, fold, fold_t
+  -- view 3, and the bar / phrase
+  local flies, owls, lanterns, sweep_t, sweep_v, wind, bar_t, tide
 
   function M.init()
     rings, stars, birds, rays, falls = {}, {}, {}, {}, {}
     swell, sw_s = 0, 0
     glint, sink, surge = 0, 0, 0
     fold, fold_t = 0, -99
+    flies, owls, lanterns = {}, {}, {}
+    sweep_t, sweep_v, wind, bar_t, tide = -99, 0, 0, -99, 0
   end
   M.clear = M.init
 
@@ -76,6 +96,7 @@ return function(K)
     drop(x, y, 4 + 6 * v, 7)
     drop(x, y, 2.5 + 3 * v, 7, K.T + 0.45)
     fold, fold_t = math.max(fold, 0.5 + 0.5 * v), K.T
+    sweep_t, sweep_v = K.T, v
   end
   function M.clap(v) M.snare(K.num(v, 1) * 0.8) end
   function M.rim(v) v = K.num(v, 1); drop(10 + K.rnd() * 108, HY + 3 + K.rnd() * 10, 2 + 3 * v, 4) end
@@ -83,7 +104,16 @@ return function(K)
   function M.hat(v, open)
     v = K.num(v, 1)
     glint = math.max(glint, (open and 0.7 or 0.4) * v)
-    if #rays < 12 then rays[#rays + 1] = {x = K.rnd() * 128, t0 = K.T, lv = (open and 4 or 2.5) * v} end
+    if #rays < 12 then rays[#rays + 1] = {x = K.rnd() * 128, t0 = K.T, lv = (open and 4 or 2.5) * v,
+      h = open and 1 or 0.5} end
+    -- (view 3: a firefly; an open hat lights a pair that drift together)
+    local n = open and 2 or 1
+    local x, y = 8 + K.rnd() * 112, 44 + K.rnd() * 16
+    for k = 1, n do
+      if #flies >= 10 then table.remove(flies, 1) end
+      flies[#flies + 1] = {x = x + (k - 1) * 3, y = y - (k - 1), t0 = K.T, life = open and 1.6 or 0.8,
+        v = v, dx = (K.rnd() - 0.5) * 6, dy = -2 - K.rnd() * 3}
+    end
   end
   function M.ride(v) M.hat(K.num(v, 1), true) end
   function M.shaker(v) glint = math.max(glint, 0.3 * K.num(v, 1)) end
@@ -91,6 +121,13 @@ return function(K)
   function M.perc(kind, v)
     v = K.num(v, 1)
     star(3 + 5 * v)
+    if kind == 1 or kind == 2 or kind == 13 or kind == 17 then
+      if #owls >= 2 then table.remove(owls, 1) end
+      owls[#owls + 1] = {x = 10 + K.rnd() * 108, y = 46 + K.rnd() * 8, t0 = K.T}
+    elseif kind == 3 or kind == 4 or kind == 11 or kind == 8 or kind == 21 then
+      if #lanterns >= 3 then table.remove(lanterns, 1) end
+      lanterns[#lanterns + 1] = {x = 6 + K.rnd() * 116, t0 = K.T, v = v}
+    end
     if (kind == 8 or kind == 4) and #falls < 3 then
       falls[#falls + 1] = {x = 20 + K.rnd() * 90, y = 2 + K.rnd() * 8, t0 = K.T, dx = K.rnd() < 0.5 and -1 or 1}
     end
@@ -104,6 +141,13 @@ return function(K)
 
   function M.ratchet(n)
     n = clamp(math.floor(K.num(n, 2)), 1, 10)
+    -- (view 3: a string of fireflies climbing out of the trees)
+    local x0 = 20 + K.rnd() * 88
+    for k = 0, n - 1 do
+      if #flies >= 10 then table.remove(flies, 1) end
+      flies[#flies + 1] = {x = x0 + k * 4, y = 56 - k * 1.5, t0 = K.T + k * 0.07, life = 1.2,
+        v = 1, dx = 2, dy = -6}
+    end
     -- a skipping stone: drops along a line, closer and closer together
     local x, y = 16 + K.rnd() * 30, HY + 20 + K.rnd() * 8
     local dx, dy = 9 + K.rnd() * 4, -1.6
@@ -117,14 +161,26 @@ return function(K)
     end
   end
 
+  function M.bar(S)
+    bar_t = K.T
+    tide = 1
+  end
+
   function M.fill()
     surge = 1
+    wind = 1
     if #birds < 6 then
       local y = 8 + K.rnd() * 10
       for k = 0, 2 do
         birds[#birds + 1] = {x = -6 - k * 7, y = y + k * 2 + K.rnd() * 2, t0 = K.T, ph = K.rnd() * 6}
       end
     end
+  end
+
+  local PH = 0                          -- where we are in the phrase, 0..1
+  local function phrase(S)
+    local pl = math.max(1, math.floor(K.num(S.phrase_len, 16)))
+    return clamp((K.num(S.phrase_pos, 0) % pl + K.bar_ph) / pl, 0, 1)
   end
 
   ---------------------------------------------------------------- view 1
@@ -156,7 +212,7 @@ return function(K)
   local function draw1(S)
     local T, DT, e, c = K.T, K.DT, K.energy, K.chaos
     local lo, hi, kl, mid = A[K.LO], A[K.HI], K.kickless, A[K.MID]
-    local sy = HY + 1 + sink * 4 - e * 1.5
+    local sy = HY + 1 + sink * 4 - e * 1.5 + PH * 1.5
     local sr = 7.5 + sw_s * 1.6 + lo * 0.6
 
     -- the sky: deepening upward, warm around the sun
@@ -166,7 +222,7 @@ return function(K)
     end, SHORE)
     K.gradient(HY - 14, HY - 1, function(y)
       local u = (y - HY + 14) / 14
-      return u * (0.9 + e * 0.6 + sw_s * 0.6 + lo * 1.1) * (1 - sink * 0.4)
+      return u * (0.9 + e * 0.6 + sw_s * 0.6 + lo * 1.1 + PH * 0.4) * (1 - sink * 0.4)
     end, SHORE, SX - 34, SX + 34)
     -- stars: a few always, more as the dusk deepens; percussion adds some
     for i = 0, 13 do
@@ -222,7 +278,9 @@ return function(K)
       local y = HY + 3 + p * p * 30
       local len = 10 + p * 40
       local x = (K.hash(k, 21) * 128 + T * (0.5 + p) * (K.hash(k, 22) - 0.5) * 4) % 128
-      local l = (0.7 + mid * 1.4 + p * 1.5 + sw_s * 1.5 * p) * (0.5 + 0.5 * math.sin(p * math.pi))
+      -- (each bar a slow swell runs in through them)
+      local tw = tide * math.max(0, 1 - math.abs(p - (1 - tide)) * 4)
+      local l = (0.7 + mid * 1.4 + p * 1.5 + sw_s * 1.5 * p + tw * 2) * (0.5 + 0.5 * math.sin(p * math.pi))
       put(l, x - len / 2, y + sw_s * p * 1.2, len, 1)
       if p > 0.5 then put(l * 0.7, x + len * 0.4, y + 1, len * 0.3, 1) end
     end
@@ -241,6 +299,17 @@ return function(K)
           put(l, x - w / 2, y, w / 2 - gap / 2, 1)
           put(l * 0.85, x + gap / 2, y, w / 2 - gap / 2, 1)
         end
+      end
+    end
+    -- hats: a streak of light standing on the path (open hats longer)
+    for i = #rays, 1, -1 do
+      local r = rays[i]
+      local u = (K.T - r.t0) / 0.6
+      if u >= 1 then table.remove(rays, i)
+      elseif u >= 0 then
+        local x = SX + (r.x / 128 - 0.5) * 34
+        local y0 = HY + 3 + (r.x % 7) * 2
+        line(r.lv * (1 - u) * 1.3, x, y0, x, y0 + (4 + 10 * (r.h or 1)) * (0.6 + 0.4 * u))
       end
     end
     -- glints on the path
@@ -303,7 +372,7 @@ return function(K)
     local fx = fu * 70 - 10
     for x = 0, 127 do foot[x] = 0 end
     for L = layers, 1, -1 do
-      local base = 41 - (L - 1) * 9
+      local base = 41 - (L - 1) * 9 - PH * 3
       local li = inten * (L == 1 and 1 or 0.5 - (L - 2) * 0.15)
       local sx = L == 1 and 1 or 2
       for x = 0, 127, sx do
@@ -315,6 +384,7 @@ return function(K)
           yb = yb - fold * (1 - fu / 2.2) * 6 * math.cos(d / 18 * math.pi / 2)
         end
         local bright = li * (0.45 + 0.55 * (0.5 + 0.5 * math.sin(x * 0.11 + T * 0.37 + L)) ^ 2)
+          + tide * 0.5 * math.max(0, 1 - math.abs(x - (1 - tide) * 160) / 30)
         local l = 1 + bright * 5.5
         local rr = K.at(RIDGE, x) - 1
         local yc = math.min(yb, rr)
@@ -346,7 +416,7 @@ return function(K)
       elseif u >= 0 then
         local x = math.floor(r.x)
         local yb = math.min(41 + 4 * math.sin(x * 0.04 + T * 0.21 + 1.7), K.at(RIDGE, x) - 2)
-        line(r.lv * (1 - u) * (0.6 + inten * 0.6), x, yb - 24 * (0.5 + u * 0.5), x, yb)
+        line(r.lv * (1 - u) * (0.6 + inten * 0.6), x, yb - 24 * (r.h or 1) * (0.5 + u * 0.5), x, yb)
       end
     end
 
@@ -374,15 +444,150 @@ return function(K)
     K.grain(function(u, v) return u * 128, 2 + v * 30 end, 1 + hi * 10 + glint * 20, 3 + hi * 4)
   end
 
+  ---------------------------------------------------------------- view 3
+  -- pines in mist under a rising moon: ridge behind ridge of firs, the far
+  -- ones paled by the mist, fog lying in the folds between them
+  local NL = 4
+  local LAY = {}                        -- each layer's tree line (x step 2)
+  for L = 1, NL do
+    local base = 27 + L * 5 + (L == NL and 4 or 0)
+    LAY[L] = K.profile(function(x)
+      local ridge = base - 3 * math.sin(x * (0.02 + L * 0.006) + L * 1.7) - 1.5 * math.sin(x * 0.07 + L)
+      -- the firs: sharp teeth, bigger nearer
+      local sz = 2 + L * 1.6
+      local sp = sz * 2.4
+      local cell = math.floor(x / sp)
+      local cx = (cell + 0.5) * sp + (K.hash(cell + L * 97, 81) - 0.5) * sz
+      local h = sz * (1.4 + K.hash(cell + L * 97, 82) * 1.4)
+      local tooth = math.max(0, h - math.abs(x - cx) * (h / (sz * 0.7)))
+      return ridge - tooth
+    end)
+  end
+  local MX = 98                         -- the moon's x
+
+  local function draw3(S)
+    local T, DT, e, c = K.T, K.DT, K.energy, K.chaos
+    local lo, hi, kl, mid, amp = A[K.LO], A[K.HI], K.kickless, A[K.MID], A[K.AMP]
+    local hiq = hi * (1 - K.env.kick) ^ 3
+    -- the wind: a fill or chaos sways the near firs
+    local sway = wind * math.sin(T * 3) * 2 + c * math.sin(T * 1.7) * 1.2
+
+    -- the sky: stars, the moon rising through the phrase
+    for i = 0, 21 do
+      local x, y = math.floor(K.hash(i, 61) * 127), 1 + math.floor(K.hash(i, 62) * 24)
+      local tw = 0.5 + 0.5 * math.sin(T * (0.4 + K.hash(i, 63)) + i * 1.9)
+      put(0.7 + tw * (0.6 + kl * 1) + hiq * 3 * tw + glint * 2 * tw, x, y, 1, 1)
+    end
+    for i = #stars, 1, -1 do
+      local st = stars[i]
+      local u = (K.T - st.t0) / 2.5
+      if u >= 1 then table.remove(stars, i)
+      else put(st.lv * (1 - u), st.x, st.y, 1, 1) end
+    end
+    local my = 17 - PH * 6 + sink * 4
+    local ml = (5 + e * 2 + lo * 1.5 + sw_s * 1.5) * (1 - sink * 0.3)
+    K.disc(1 + lo * 0.8 + sw_s * 0.8 + amp * 0.5, MX, my, 9 + sw_s * 2 + lo * 1.5)
+    K.ring(1.5 + sw_s * 2 + lo, MX, my, 13 + sw_s * 3 + lo * 2 + math.sin(T * 0.9) * 1.2, 22)
+    K.disc(ml, MX, my, 5)
+    put(ml + 1.5, MX - 2, my - 3, 2, 1)
+    put(ml * 0.7, MX + 1, my + 1, 2, 2)
+    if c > 0.4 then K.ring(1 + c * 2, MX - 18 - c * 10, my + 4, 3, 10) end
+
+    -- distant lanterns on the far ridge (cowbell, clave, plinks)
+    for i = #lanterns, 1, -1 do
+      local Ln = lanterns[i]
+      local u = (K.T - Ln.t0) / 3
+      if u >= 1 then table.remove(lanterns, i)
+      else put((2 + Ln.v * 6) * math.sin(math.pi * math.min(1, u * 3)) * (1 - u), Ln.x, K.at(LAY[1], Ln.x) + 2, 1, 1) end
+    end
+
+    -- the ridges: each one's face a flat tone, palest far away, the nearest
+    -- black; fog laid in the folds between them, drifting
+    local sw_t = K.T - sweep_t
+    for L = 1, NL - 1 do
+      local P, Q = LAY[L], LAY[L + 1]
+      local lv = (NL - L) * (0.7 + mid * 0.35 + e * 0.15) * (1 - kl * 0.25) + amp * 0.4
+      for cc = 0, 63 do
+        local top = math.floor(P[cc] + 0.5)
+        local bot = math.floor(Q[cc] + 0.5)
+        if bot > top then put(lv, cc * 2, top, 2, bot - top) end
+      end
+      -- the fog bank in front of this ridge: drifting, breathing with the lows
+      local fy = 0
+      for cc = 0, 63, 4 do fy = fy + Q[cc] end
+      fy = fy / 16 - 2
+      local nb = 2 + math.floor(kl * 2 + e)
+      for b = 0, nb - 1 do
+        local w = 30 + K.hash(b + L * 7, 71) * 40
+        local x = (K.hash(b + L * 7, 72) * 200 + T * (3 + L * 1.2) * (b % 2 == 0 and 1 or -1)) % (128 + w) - w
+        -- (a snare sends a sweep of moonlight along the fog)
+        local sl = 0
+        if sw_t < 2 then sl = sweep_v * (1 - sw_t / 2) * math.max(0, 1 - math.abs(x + w / 2 - sw_t * 90) / 30) * 3 end
+        local fl = lv + 1 + lo * 0.8 + sw_s * 0.6 + kl * 0.8 + sl + surge
+        put(fl, x, fy + (b % 2), w, 2)
+        put(fl * 0.7, x + w * 0.2, fy - 1 + (b % 2), w * 0.6, 1)
+      end
+    end
+    -- the near firs: black, rimmed on the moon's side, swaying in the wind
+    local N = LAY[NL]
+    local rl = 1.5 + hi * 1.5 + e * 0.5 + amp * 0.5
+    local px, py
+    for cc = 0, 64 do
+      local x = cc * 2
+      local y = N[math.min(cc, 64)] + (sway ~= 0 and math.sin(x * 0.2) * sway * 0.5 or 0)
+      if px then line(rl * (x > 40 and 1 or 0.6), px, py, x, y) end
+      px, py = x, y
+    end
+    -- a few trunks catching the light
+    for k = 0, 6 do
+      local x = 9 + k * 18 + math.floor(K.hash(k, 77) * 6)
+      line(1 + hi * 0.8 + (x > MX - 30 and 0.6 or 0), x + sway * 0.3, K.at(N, x) + 4, x, 63)
+    end
+    -- the ground fog, thick when kickless
+    K.haze(0, 55, 128, 64, 0.1 + kl * 0.5 + surge * 0.3, 1 + kl, T * 4)
+
+    -- owls' eyes in the near trees (congas, toms)
+    for i = #owls, 1, -1 do
+      local O = owls[i]
+      local u = (K.T - O.t0) / 2
+      if u >= 1 then table.remove(owls, i)
+      else
+        local blink = (u > 0.45 and u < 0.5) and 0 or 1
+        local l = 6 * math.sin(math.pi * math.min(1, u * 2.5)) * (1 - u) * blink
+        put(l, O.x, O.y, 1, 1)
+        put(l, O.x + 3, O.y, 1, 1)
+      end
+    end
+    -- fireflies: hats and ratchets
+    for i = #flies, 1, -1 do
+      local F = flies[i]
+      local age = K.T - F.t0
+      local u = age / F.life
+      if u >= 1 then table.remove(flies, i)
+      elseif u >= 0 then
+        local x = F.x + F.dx * age + math.sin(age * 5 + F.x) * 1.5
+        local y = F.y + F.dy * age
+        local l = (4 + F.v * 6) * math.sin(math.pi * u)
+        put(l, x, y, 1, 1)
+        if l > 4 then put(l * 0.3, x - 1, y, 3, 1) end
+      end
+    end
+    -- the highs: a faint shimmer in the mist over the far ridge
+    K.grain(function(u, v) return u * 128, K.at(LAY[1], u * 128) - 1 - v * 6 end, 5 + hi * 10 + glint * 14, 3 + hi * 3)
+  end
+
   function M.draw(S)
     local DT = K.DT
+    PH = phrase(S)
+    tide = tide * math.exp(-DT / 1.4)
+    wind = wind * math.exp(-DT / 1.5)
     swell = swell * math.exp(-DT / 0.6)
     sw_s = K.follow(sw_s, swell, 0.08, DT)
     glint = glint * math.exp(-DT / 0.25)
     surge = surge * math.exp(-DT / 1.2)
     fold = fold * math.exp(-DT / 1.5)
     sink = K.follow(sink, K.kickless, 2, DT)
-    if K.view == 2 then draw2(S) else draw1(S) end
+    if K.view == 2 then draw2(S) elseif K.view == 3 then draw3(S) else draw1(S) end
   end
 
   M.init()

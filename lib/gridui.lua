@@ -101,7 +101,7 @@ function GU.redraw()
       g:led(x, 4, lvl)
     end
   end
-  g:led(16, 4, kpage == 1 and 3 or 8)
+  g:led(16, 4, ({3, 8, 13})[kpage] or 13)
 
   -- parts
   for x, k in ipairs(GU.PARTS) do

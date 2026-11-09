@@ -8,19 +8,21 @@
 --   kick   {type, tune (midi), decay, drive}   type 1 sub 2 909 3 808 4 knock 5 gabber
 --                                              6 rave 7 acoustic 8 metal 9 minipops
 --                                              10 dubstep 11 click 12 toy 13 dusty 14 tribal
---                                              15 808 long 16 simmons
+--                                              15 808 long 16 simmons 17 hardstyle
+--                                              18 trance 19 gqom
 --   snare  {type, tune, decay, tone}           type 1 909 2 drill 3 808 4 noise
 --                                              5 acoustic 6 jungle 7 metal 8 minipops
 --                                              9 dubstep 10 click 11 toy 12 dusty 13 frame
---                                              14 disco 15 simmons
+--                                              14 disco 15 simmons 16 gated 17 miami
 --   rim    weight of rim (vs snare) on the backbeat / ghosts, 0..1
 --   clap   chance a phrase uses claps on the backbeat, 0..1
 --   hat    {type, tone (0..1), open decay}       type 1 analog 2 metallic 3 crisp
 --                                                4 acoustic 5 lofi 6 minipops 7 dusty 8 click
---                                                9 disco
+--                                                9 disco 10 shaker
 --   perc   list of perc kinds (1 conga 2 bongo 3 cowbell 4 clave 5 acid
 --          6 metal 7 log 8 plink 9 guiro 10 tambourine 11 music box
---          12 squeak 13 talking drum 14 wobble 15 crackle 16 vox 17 syntom)
+--          12 squeak 13 talking drum 14 wobble 15 crackle 16 vox 17 syntom
+--          18 log drum 19 bed squeak 20 tamborzao 21 phonk bell)
 --   ticks  list of tick kinds (1 click 2 blip 3 crush 4 ring 5 chirp 6 zap
 --          7 error 8 pop)
 --   shaker, ride, toms   chance per phrase that the part is in the arrangement
@@ -208,6 +210,54 @@ K.list = {
    hat = {1, 0.55, 0.3}, perc = {17, 4}, ticks = {2, 1},
    shaker = 0.2, ride = 0.3, toms = 0.5,
    grooves = {motorik = 4, four = 1}, swing = 0, echo = 0.45, verb = 0.8, crush = 0, drive = 0.15},
+
+  {name = "trance",
+   kick = {18, 33, 0.38, 0.2}, snare = {1, 55, 0.2, 0.6}, rim = 0.2, clap = 0.95,
+   hat = {3, 0.7, 0.28}, perc = {12, 4}, ticks = {2, 5},
+   shaker = 0.4, ride = 0.6, toms = 0.2,
+   grooves = {trance = 4, four = 1}, swing = 0, echo = 0.55, verb = 1.2, crush = 0, drive = 0.2},
+
+  {name = "hardstyle",
+   kick = {17, 32, 0.5, 0.6}, snare = {16, 56, 0.2, 0.6}, rim = 0.1, clap = 0.8,
+   hat = {2, 0.65, 0.25}, perc = {6, 12}, ticks = {6, 3},
+   shaker = 0.1, ride = 0.3, toms = 0.3,
+   grooves = {hardstyle = 4, rave = 1}, swing = 0, echo = 0.3, verb = 1.0, crush = 0.05, drive = 0.5},
+
+  {name = "amapiano",
+   kick = {2, 31, 0.5, 0.1}, snare = {1, 56, 0.14, 0.45}, rim = 0.7, clap = 0.5,
+   hat = {10, 0.5, 0.3}, perc = {18, 18, 4}, ticks = {1},
+   shaker = 0.9, ride = 0.2, toms = 0.2,
+   grooves = {amapiano = 4, four = 1}, swing = 16, echo = 0.4, verb = 0.9, crush = 0, drive = 0.15},
+
+  {name = "gqom",
+   kick = {19, 30, 0.65, 0.3}, snare = {4, 52, 0.2, 0.4}, rim = 0.5, clap = 0.3,
+   hat = {5, 0.45, 0.3}, perc = {20, 17, 13}, ticks = {3, 1},
+   shaker = 0.3, ride = 0.1, toms = 0.9,
+   grooves = {gqom = 4, tribal = 1}, swing = 6, echo = 0.6, verb = 1.2, crush = 0.1, drive = 0.3},
+
+  {name = "baile",
+   kick = {3, 31, 0.55, 0.35}, snare = {17, 55, 0.15, 0.55}, rim = 0.4, clap = 0.6,
+   hat = {1, 0.55, 0.25}, perc = {20, 20, 16}, ticks = {8, 2},
+   shaker = 0.4, ride = 0.1, toms = 0.3,
+   grooves = {baile = 4, trap = 1}, swing = 10, echo = 0.35, verb = 0.6, crush = 0.05, drive = 0.4},
+
+  {name = "jersey",
+   kick = {2, 33, 0.4, 0.3}, snare = {17, 56, 0.15, 0.6}, rim = 0.3, clap = 0.8,
+   hat = {3, 0.6, 0.25}, perc = {19, 19, 16}, ticks = {8, 5},
+   shaker = 0.2, ride = 0.1, toms = 0.2,
+   grooves = {jersey = 4, footwork = 1}, swing = 8, echo = 0.3, verb = 0.6, crush = 0, drive = 0.3},
+
+  {name = "phonk",
+   kick = {15, 29, 0.8, 0.5}, snare = {17, 54, 0.18, 0.5}, rim = 0.3, clap = 0.5,
+   hat = {5, 0.5, 0.25}, perc = {21, 21, 16}, ticks = {3, 8},
+   shaker = 0.2, ride = 0.1, toms = 0.2,
+   grooves = {phonk = 4, trap = 1}, swing = 12, echo = 0.4, verb = 0.7, crush = 0.15, drive = 0.55},
+
+  {name = "synthwave",
+   kick = {16, 33, 0.45, 0.15}, snare = {16, 55, 0.3, 0.55}, rim = 0.2, clap = 0.3,
+   hat = {1, 0.55, 0.3}, perc = {17, 4}, ticks = {2},
+   shaker = 0.3, ride = 0.4, toms = 0.7,
+   grooves = {synthwave = 4, rock = 1}, swing = 0, echo = 0.5, verb = 1.3, crush = 0, drive = 0.2},
 }
 
 K.names = {}

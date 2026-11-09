@@ -3,24 +3,47 @@
 -- view 2: inside a tape echo: a loop of tape runs past erase, record and three
 -- playback heads; each hit is written on the tape and comes back fainter at
 -- the echo time, a VU needle swings and the spring tank shakes underneath.
+-- view 3: the dubplate: a record turning on the deck, seen from above at a
+-- slant; every hit is cut into the groove under the needle and its echoes
+-- are cut in after it, a spiral of fading marks wound round the record.
 --
 -- view 1: the kick pumps the cones (air rings puff out of them) and pools a
 -- glow on the yard; rim / snare / clap drop rings on the floor that spread
 -- out under the fog, repeating fainter at the echo time until the feedback
--- dies; congas puff small rings at the stacks' feet; hats glint in the fog
--- and on the tweeters; a fill sounds the siren up the horns. energy thickens
--- the fog and the glow, chaos jitters and doubles the rings and ghosts the
--- stacks, and kickless stretches let the glow die into a thick fog bank.
+-- dies; congas puff small rings at the stacks' feet, cowbell / clave / metal
+-- ping a bright line across a horn; closed hats glint on the tweeters, open
+-- hats throw sparks up out of the fog, rides twinkle the stars; a fill
+-- sounds the siren: waves rise out of the horns. a light walks the back wall
+-- through the bar, and over the phrase the moon climbs and the stars come
+-- out; the last bar of the phrase thickens the fog. energy thickens the fog
+-- and the glow, chaos jitters and doubles the rings and ghosts the stacks,
+-- and kickless stretches let the glow die into a thick fog bank.
 -- view 2: hits write marks at the record head; the marks ride the tape and
 -- light each playback head they pass (one head at rest, more with energy and
 -- chaos), and each pass writes a fainter copy back (the feedback); the kick
--- slams the VU and the capstan, snares and echoes twang the springs.
+-- slams the VU and the capstan, snares and echoes twang the springs, closed
+-- hats flick the erase head, open hats write a faint hiss; every bar cuts a
+-- splice into the tape and the phrase lamps fill along the chassis.
+-- view 3: the record turns once a bar; the needle sits on the right and
+-- winds inward over the phrase, so the marks spiral in. the kick sends a
+-- wave out across the grooves and thumps the label and the tonearm; snares
+-- cut long arcs, claps a pair, rims a nick, each followed by its echoes at
+-- the echo time, fainter by the feedback; congas and toms cut the inner
+-- grooves, bells ping the label; closed hats spark the needle, open hats
+-- lift dust off the vinyl, rides sparkle the strobe dots; a ratchet cuts a
+-- row of ticks; a fill pulls the record back (a spinback) and the siren
+-- lamp burns. energy brightens the sheen and the marks, chaos warps the
+-- record and doubles the cuts, kickless the platter drags and a haze hangs
+-- over it.
 --
 -- the ears: view 1, the lows pool the glow and pump the cones, the mids open
 -- and light the horns, warm the mid cabinets and ring the yard, the highs
 -- glint the stars, tweeters and fog; view 2, the lows swell the tape and the
--- rollers and the tank's transducers, the mids light the heads and shake the springs, the highs glitter
--- on the oxide and in the tank; the lows and the level light the side rails.
+-- rollers and the tank's transducers, the mids light the heads and shake the
+-- springs, the highs glitter on the oxide and in the tank; the lows and the
+-- level light the side rails. view 3, the lows swell the grooves and the
+-- platter's rim, the mids light the sheen and the label, the highs throw
+-- dust glints over the vinyl, the level lights the strobe dots.
 return function(K)
   local M = {}
   local put, line, A, clamp = K.put, K.line, K.A, K.clamp
@@ -54,6 +77,20 @@ return function(K)
   local sps, caps = {0, 0}, 0         -- the same, eased for the drawing
   local MAXM = 32
 
+  -- the phrase (all views), eased: 0 at its first bar, 1 at its end
+  local pp = 0
+  local sparks                        -- view 1: open-hat sparks over the fog
+  local pings                         -- view 1: bell pings across a horn
+  local splice                        -- view 2: the bar's splice lamp
+
+  -- view 3: the dubplate
+  local pmarks, pemits, motes
+  local rot, spin                     -- the record's angle, its speed (1 = a bar a turn)
+  local kwave                         -- kick waves: {t0, v}
+  local lthump, arm, nsp, slamp       -- label thump, tonearm bounce, needle spark, siren lamp
+  local rn                            -- the needle's radius, eased
+  local MAXPM = 18
+
   function M.init()
     rings, emits, puffs = {}, {}, {}
     glow, cone, flash, siren, ghost = 0, 0, 0, 0, 0
@@ -65,8 +102,31 @@ return function(K)
     spr = {0, 0}
     cap = 0
     sps, caps = {0, 0}, 0
+    pp = 0
+    sparks, pings, splice = {}, {}, 0
+    pmarks, pemits, motes = {}, {}, {}
+    rot, spin = 0, 1
+    kwave = {}
+    lthump, arm, nsp, slamp = 0, 0, 0, 0
+    rn = 40
   end
   M.clear = M.init
+
+  -- view 3: cut a mark into the groove under the needle (or at angle a)
+  local function cut(lv, len, kind, r, a)
+    if #pmarks >= MAXPM then
+      local mi, ml = 1, math.huge
+      for i = 1, #pmarks do if pmarks[i].lv < ml then mi, ml = i, pmarks[i].lv end end
+      table.remove(pmarks, mi)
+    end
+    pmarks[#pmarks + 1] = {a = a or (-0.35 - rot), r = r or rn, lv = lv, len = len, kind = kind or 1,
+      t0 = K.T, j = (K.rnd() - 0.5) * 2}
+    nsp = math.max(nsp, lv / 12)
+  end
+  local function pecho(lv, len, kind)
+    if #pemits >= 6 then table.remove(pemits, 1) end
+    pemits[#pemits + 1] = {lv = lv, len = len, kind = kind, n = 0, next = K.NOW + K.echo_t}
+  end
 
   local function spawn(lv, x, y, sp)
     if #rings >= MAXR then table.remove(rings, 1) end
@@ -97,49 +157,102 @@ return function(K)
     write(4 + 8 * v, 3)
   end
 
-  function M.snare(v) v = K.num(v, 1); drop(v, 20); flash = math.max(flash, 0.7); spr[1] = spr[1] + 1.6 * v; spr[2] = spr[2] + 1.0 * v end
-  function M.rim(v) v = K.num(v, 1); drop(v * 0.8, 28); spr[2] = spr[2] + 0.6 * v end
-  function M.clap(v) v = K.num(v, 1); drop(v * 0.9, 16); spr[1] = spr[1] + v end
+  function M.snare(v)
+    v = K.num(v, 1); drop(v, 20); flash = math.max(flash, 0.7); spr[1] = spr[1] + 1.6 * v; spr[2] = spr[2] + 1.0 * v
+    cut(5 + 6 * v, 0.42, 1); pecho(5 + 6 * v, 0.42, 1)
+  end
+  function M.rim(v)
+    v = K.num(v, 1); drop(v * 0.8, 28); spr[2] = spr[2] + 0.6 * v
+    cut(4 + 5 * v, 0.1, 3); pecho(4 + 5 * v, 0.1, 3)
+  end
+  function M.clap(v)
+    v = K.num(v, 1); drop(v * 0.9, 16); spr[1] = spr[1] + v
+    cut(4 + 6 * v, 0.16, 2); pecho(4 + 6 * v, 0.16, 2)
+  end
 
   function M.kick(v)
     v = K.num(v, 1)
     cone = 1
     glow = math.max(glow, 0.5 + 0.5 * v)
     for side = 0, 1 do
-      for b = 1, 1 do
-        if #puffs < 12 then puffs[#puffs + 1] = {t0 = K.T, side = side, b = b, v = v} end
-      end
+      if #puffs < 12 then puffs[#puffs + 1] = {t0 = K.T, side = side, b = 1, v = v} end
     end
     vuv = vuv + 9 * v
     cap = 1
     spr[1] = spr[1] + 0.3 * v; spr[2] = spr[2] + 0.3 * v
+    if #kwave >= 4 then table.remove(kwave, 1) end
+    kwave[#kwave + 1] = {t0 = K.T, v = v}
+    lthump, arm = 1, math.max(arm, v)
+  end
+
+  local function spark(n, lv)
+    for _ = 1, n do
+      if #sparks >= 10 then table.remove(sparks, 1) end
+      sparks[#sparks + 1] = {x = 40 + K.rnd() * 48, y = GY + 6 + K.rnd() * 14, t0 = K.T, lv = lv,
+        dx = (K.rnd() - 0.5) * 6}
+    end
+  end
+  local function mote(n, lv)
+    for _ = 1, n do
+      if #motes >= 12 then table.remove(motes, 1) end
+      local a, r = K.rnd() * K.TAU, 14 + K.rnd() * 28
+      motes[#motes + 1] = {a = a, r = r, t0 = K.T, lv = lv}
+    end
   end
 
   function M.hat(v, open)
     v = K.num(v, 1)
-    if open then write(1.5 + 2 * v, 1, false) end
+    if open then
+      write(1.5 + 2 * v, 1, false)
+      spark(2, 4 + 5 * v)
+      mote(2, 4 + 5 * v)
+    else
+      erasel = math.max(erasel, 0.25 * v)
+      nsp = math.max(nsp, 0.35 + 0.4 * v)
+    end
+  end
+  function M.ride(v)
+    v = K.num(v, 1)
+    erasel = math.max(erasel, 0.2 * v)
+    mote(1, 3 + 3 * v)
   end
 
   function M.perc(kind, v)
     v = K.num(v, 1)
-    if kind == 1 or kind == 2 or kind == 7 then
+    if kind == 1 or kind == 2 or kind == 7 or kind == 13 or kind == 17 or kind == 18 then
       local side = K.rnd() < 0.5 and 0 or 1
       spawn(3 + 4 * v, side == 0 and 22 or 106, 55, 12)
       write(2 + 4 * v, 1)
+      cut(3 + 4 * v, 0.08, 4, 15 + K.rnd() * 6, K.rnd() * K.TAU)
+    elseif kind == 3 or kind == 4 or kind == 6 or kind == 21 or kind == 11 or kind == 8 then
+      if #pings >= 4 then table.remove(pings, 1) end
+      pings[#pings + 1] = {side = K.rnd() < 0.5 and 0 or 1, t0 = K.T, v = v}
+      flash = math.max(flash, 0.3 * v)
+      write(2 + 3 * v, 1, false)
+      lthump = math.max(lthump, 0.6 * v)
     else
       flash = math.max(flash, 0.4 * v)
       write(2 + 3 * v, 1, false)
+      if kind == 15 then ghost = math.max(ghost, 0.8) end
+      cut(2 + 3 * v, 0.05, 4)
     end
   end
-  function M.tom(v) M.perc(1, v) end
+  function M.tom(v)
+    v = K.num(v, 1)
+    local side = K.rnd() < 0.5 and 0 or 1
+    spawn(3 + 5 * v, side == 0 and 22 or 106, 55, 10)
+    write(2 + 4 * v, 2)
+    cut(4 + 5 * v, 0.22, 4, 16 + K.rnd() * 4, K.rnd() * K.TAU)
+  end
 
   function M.brk(s, n)
     s, n = K.num(s, 1), math.max(1, K.num(n, 8))
     local x = 40 + (s - 0.5) / n * 48
     spawn(4, x, CY + 2, 18)
     if s % 2 == 1 then write(2.5, 1, false) end
+    cut(3, 0.06, 3, 38, (s - 0.5) / n * K.TAU)
   end
-  function M.tick() ghost = math.max(ghost, 0.5) end
+  function M.tick() ghost = math.max(ghost, 0.5); nsp = math.max(nsp, 0.3) end
 
   function M.fill()
     siren = 1
@@ -148,6 +261,13 @@ return function(K)
       rings[#rings + 1] = {t0 = K.T + k * 0.15, lv = 7 - k, x = CX, y = CY, sp = 24, seed = k * 7}
     end
     hl[1], hl[2], hl[3] = 1, 1, 1
+    spin = -2.2                                  -- the selector pulls it back
+    slamp = 1
+  end
+
+  function M.bar()
+    splice = 1
+    write(5, 1, false)
   end
 
   function M.ratchet(n)
@@ -163,6 +283,12 @@ return function(K)
       marks[#marks + 1] = {s = 20 - k * 3, lv = 9 - k, w = 1, fb = false, hit = 0}
     end
     spr[1] = spr[1] + 1
+    for k = 0, math.min(n, 8) - 1 do cut(12 - k * 0.5, 0.04, 5, rn, -0.35 - rot + 0.13 * k) end
+    arm = math.max(arm, 1)
+    nsp = 1
+    if #kwave >= 4 then table.remove(kwave, 1) end
+    kwave[#kwave + 1] = {t0 = K.T, v = 1}
+    lthump = math.max(lthump, 0.7)
   end
 
   -- the echo emitters (view 1): each repeats at the echo time, fainter
@@ -272,14 +398,17 @@ return function(K)
 
     -- the sky: stars, a low moon in the haze, and a sodium glow behind
     -- the rooftops
-    for i = 0, 15 do
+    -- (more of them come out as the phrase goes on; the ride twinkles them)
+    local rd = K.env.ride
+    for i = 0, 21 do
       local x, y = math.floor(K.hash(i, 1) * 127), 1 + math.floor(K.hash(i, 2) * 14)
-      if x > 34 and x < 94 then
+      if x > 34 and x < 94 and K.hash(i, 4) < 0.5 + pp * 0.5 + kl * 0.3 then
         local tw = 0.5 + 0.5 * math.sin(T * (0.5 + K.hash(i, 3)) + i * 1.7)
-        put(1 + tw * (0.8 + hi * 2.5 + kl * 1.5), x, y, 1, 1)
+        put(1 + tw * (0.8 + hi * 2.5 + kl * 1.5 + rd * 3), x, y, 1, 1)
       end
     end
-    local mx, my = 54, 9 + math.sin(T * 0.05) * 0.5
+    -- the moon climbs through the phrase
+    local mx, my = 54, 11.5 - pp * 4 + math.sin(T * 0.05) * 0.5
     K.disc(2.5 + kl * 1.5 + e, mx, my, 4.5)
     K.disc(3.5 + kl * 2 + e, mx - 1, my - 1, 2.5)
     K.ring(1.2 + g * 0.8, mx, my, 7.5 + g * 1.5, 14)
@@ -294,14 +423,18 @@ return function(K)
     end
     -- the yard's back wall (the skyline's base) and the horizon
     line(1.5 + g * 3 + K.bar_pulse * 1.5, 37, GY, 91, GY)
+    -- a lamp walks the back wall through the bar
+    local wx = 38 + K.bar_ph * 50
+    put(2 + lo * 2 + e * 1.5 + K.bar_pulse * 2, wx, GY - 1, 3, 1)
+    put(1 + lo + e, wx - 3, GY - 1, 3, 1)
 
     -- the floor: dim rows running back, the kick's glow pooling between
     -- the stacks, wider and brighter toward us
     for y = GY + 3, 63, 4 do
       local u = (y - GY) / (63 - GY)
       local off = (T * 3 * (0.3 + u)) % 9
-      if y > 51 then K.dashes(1, y, 2 + math.floor(u * 3), 9, off + y * 3)
-      else K.dashes(1, y, 2 + math.floor(u * 3), 9, off + y * 3, 37, 91) end
+      if y > 51 then K.dashes(1, y, 1 + math.floor(u * 3), 9, off + y * 3)
+      else K.dashes(1, y, 1 + math.floor(u * 3), 9, off + y * 3, 37, 91) end
     end
     for y = GY + 1, 63 do
       local u = (y - GY) / (63 - GY)
@@ -353,15 +486,50 @@ return function(K)
         K.ring((1 + 3 * P.v) * (1 - u), hx, 24 + P.b * 19, 10.5 + u * 4, 12)
       end
     end
+    -- bells ping a bright line across a horn and out into the night
+    for i = #pings, 1, -1 do
+      local P = pings[i]
+      local u = (K.T - P.t0) / 0.45
+      if u >= 1 then table.remove(pings, i)
+      elseif u >= 0 then
+        local hx = P.side == 0 and 17 or 111
+        local l = (3 + 8 * P.v) * (1 - u)
+        line(l, hx - 6, 6, hx + 6, 6)
+        local d = P.side == 0 and 1 or -1
+        line(l * 0.5, hx + d * (8 + u * 14), 6, hx + d * (12 + u * 20), 6)
+      end
+    end
+    -- the siren: waves rise out of the horns
+    if siren > 0.05 then
+      for side = 0, 1 do
+        local hx = side == 0 and 17 or 111
+        for k = 0, 1 do
+          local ph = ((T * 1.6 + k * 0.5) % 1)
+          K.ring(siren * 6 * (1 - ph), hx, 6, 4 + ph * 14, 8, math.pi + 0.35, K.TAU - 0.35)
+        end
+      end
+    end
 
     -- the fog: a bank on the horizon and drifting banks through the yard,
     -- lit warmer where the kick's glow is
     K.gradient(GY - 3, GY + 6, function(y) return (0.35 + kl * 0.5 + e * 0.2) * (1 - math.abs(y - GY - 1) / 6) end,
       nil, 37, 91)
-    local fd = 0.17 + 0.12 * e + 0.2 * kl
+    -- (the phrase's last bar thickens it)
+    local fd = 0.17 + 0.12 * e + 0.2 * kl + 0.12 * clamp((pp - 0.93) * 14, 0, 1)
     K.haze(28, GY + 4, 100, 54, fd, 1, T * 6)
     if g > 0.25 then K.haze(40, GY + 6, 88, 50, fd * g, 2, T * 6 + 30) end
     K.grain(function(u, v) return 30 + u * 68, GY - 4 + v * 22 end, 3 + hi * 14 + e * 6 + ghost * 20, 3 + hi * 4)
+    -- open hats throw sparks up out of the fog
+    for i = #sparks, 1, -1 do
+      local P = sparks[i]
+      local u = (K.T - P.t0) / 0.7
+      if u >= 1 then table.remove(sparks, i)
+      elseif u >= 0 then
+        local x, y = P.x + P.dx * u, P.y - u * 9
+        put(P.lv * (1 - u), x, y, 1, 1)
+        if u < 0.4 then put(P.lv * 0.4 * (1 - u), x, y + 1, 1, 2) end
+      end
+    end
   end
 
   ---------------------------------------------------------------- view 2
@@ -563,6 +731,13 @@ return function(K)
     end
     -- the tank's lamp: the reverb's tail
     put(2 + (spr[1] + spr[2]) * 1.5, 61, 63, 6, 1)
+    -- the phrase lamps between the deck and the tank, and the splice lamp
+    local pf = pp * 16
+    for k = 0, 15 do
+      local on = clamp(pf - k, 0, 1)
+      put(1 + on * (1.5 + e) + (k == math.floor(pf) and K.bar_pulse * 3 or 0), 34 + k * 4, 40, 2, 1)
+    end
+    put(1 + splice * 9, 28, 40, 3, 1)
     K.grain(function(u, w) return 6 + u * 116, 44 + w * 17 end, 2 + hi * 10 + (spr[1] + spr[2]) * 3, 2 + hi * 4)
     -- the highs: the chassis screws and the tape's edge catch the light
     for k = 0, 9 do
@@ -584,6 +759,231 @@ return function(K)
     line(lo * 2.5 + A[K.AMP] * 1.2, 122, 8, 122, 38)
   end
 
+  ---------------------------------------------------------------- view 3
+  -- the dubplate: the platter's centre, its radius and the slant (y squash)
+  local PCX, PCY, PSQ = 54, 33, 0.56
+  local NA = -0.35                    -- the needle's angle on the screen
+  local GR0, GRN, GRD = 13, 8, 3.8    -- grooves: first radius, count, pitch
+  local PIV_X, PIV_Y = 116, 7         -- the tonearm's pivot
+
+  local function pxy(a, r)
+    return PCX + math.cos(a) * r, PCY + math.sin(a) * r * PSQ
+  end
+
+  -- an ellipse filled a row at a time
+  local function oval(l, cx, cy, rx, ry)
+    if not (ry > 0.5) then return end
+    for dy = -math.floor(ry), math.floor(ry) do
+      local hw = rx * math.sqrt(math.max(0, 1 - (dy / ry) ^ 2))
+      if hw >= 0.5 then put(l, cx - hw, cy + dy, hw * 2, 1) end
+    end
+  end
+
+  -- the echoes of view 3: each comes back under the needle, fainter
+  local function pechoes()
+    for i = #pemits, 1, -1 do
+      local em = pemits[i]
+      local n = 0
+      while K.NOW >= em.next and n < 4 do
+        em.lv = em.lv * K.echo_fb
+        em.n = em.n + 1
+        if em.lv >= 1.3 then cut(em.lv, em.len, em.kind) end
+        em.next = em.next + K.echo_t
+        n = n + 1
+      end
+      if em.lv < 1.3 or em.n >= 8 then table.remove(pemits, i) end
+    end
+  end
+
+  local function draw3(S)
+    local T, DT, DTS, e, c = K.T, K.DT, K.DTS, K.energy, K.chaos
+    local lo, hi, kl, mid, amp = A[K.LO], A[K.HI], K.kickless, A[K.MID], A[K.AMP]
+    pechoes()
+    -- the motor: a turn a bar, dragging kickless; a spinback eases home
+    local per = math.max(0.6, K.beat_sec * 4)
+    local sp_to = (K.playing and 1 or 0.45) * (1 - kl * 0.3)
+    spin = K.follow(spin, sp_to, spin < 0 and 0.35 or 0.6, DT)
+    rot = (rot + DTS * K.TAU / per * spin) % (K.TAU * 64)
+    -- the needle winds in over the phrase
+    rn = K.follow(rn, 41 - pp * 25, 0.6, DT)
+    lthump = lthump * math.exp(-DT / 0.15)
+    arm = arm * math.exp(-DT / 0.12)
+    nsp = nsp * math.exp(-DT / 0.1)
+    slamp = slamp * math.exp(-DT / 0.6)
+    local warp = c * c * 2.2                  -- chaos: a warped plate
+    local wob = 0.05 * c * math.sin(T * 3.1)
+
+    -- the plinth: a dim frame, the pitch fader, the start button, the lamps
+    line(1.3, 1, 2, 1, 61)
+    line(1.3, 126, 2, 126, 61)
+    for _, p in ipairs({{3, 1}, {120, 1}, {3, 62}, {120, 62}}) do put(1.5, p[1], p[2], 5, 1) end
+    line(1.5, 118, 28, 118, 58)
+    for k = 0, 6 do put(1, 115, 29 + k * 5, 2, 1) end
+    local fy = 43 + math.sin(T * 0.11) * 1.5 - (K.bar_pulse * 0.5)
+    put(3 + e * 2 + mid * 2, 116, fy, 5, 2)
+    put(2 + K.env.kick * 6 + lo * 2, 6, 57, 4, 3)                -- start / stop
+    put(1.5 + (K.playing and 3 or 0), 13, 58, 3, 1)               -- 33
+    put(1.5 + slamp * 9, 18, 58, 3, 1)                             -- the siren lamp
+    -- the strobe light at the platter's foot, and its dots round the rim;
+    -- locked they stand still, chaos sets them drifting, rides sparkle them
+    put(2 + amp * 4, 8, 47, 2, 2)
+    local drift = (K.playing and 0 or T * 0.4) + c * T * 0.9 + (1 - spin) * T * 0.3
+    for k = 0, 35 do
+      local a = k / 36 * K.TAU + drift
+      local x, y = pxy(a, 47.5)
+      local face = 0.5 + 0.5 * math.cos(a - 2.4)            -- nearer the lamp
+      put(0.6 + face * (0.6 + amp * 2.5 + K.env.ride * 4) + (k % 4 == 0 and 0.5 or 0), x, y, 1, 1)
+    end
+    -- the platter's rim (the lows swell it) and the record's edge
+    K.ring(1 + lo * 0.4 + lthump * 1.2, PCX, PCY, 45.5 + lo * 0.8, 28, 0, K.TAU, PSQ)
+    K.ring(0.8 + e * 0.4, PCX, PCY, 43, 26, 0, K.TAU, PSQ)
+
+    -- the grooves, a sheen across them from the light (two opposite
+    -- wedges that stay put while the record turns), the kick's waves
+    -- running out through them
+    local ash = 2.3 + math.sin(T * 0.07) * 0.2
+    -- the light's two wedges on the black vinyl, filled a row at a time
+    -- (wider with energy, brighter with the highs and the mids)
+    local ww = 0.22 + e * 0.18 + kl * 0.1
+    local wl = 0.9 + hi * 1.6 + mid * 0.5 + e * 0.6
+    for layer = 0, 1 do
+    local wd = layer == 0 and ww * 1.7 or ww
+    local wlv = layer == 0 and wl * 0.55 or wl
+    for side = 0, 1 do
+      local a1, a2 = ash + side * math.pi - wd, ash + side * math.pi + wd
+      local c1, c2 = math.cos(a1) / math.sin(a1), math.cos(a2) / math.sin(a2)
+      local sg = side == 0 and 1 or -1
+      for dy = 1, 24 do
+        local y = PCY + sg * dy
+        local v = sg * dy / PSQ
+        local R = 42.5
+        if math.abs(v) < R then
+          local ua, ub = v * c1, v * c2
+          if ua > ub then ua, ub = ub, ua end
+          local lim = math.sqrt(R * R - v * v)
+          local inner = math.abs(v) < 11 and math.sqrt(121 - v * v) or 0
+          if ub > 0 then ua = math.max(ua, inner) else ub = math.min(ub, -inner) end
+          ua, ub = math.max(ua, -lim), math.min(ub, lim)
+          if ub - ua >= 1 then put(wlv, PCX + ua, y, ub - ua, 1) end
+        end
+      end
+    end
+    end
+    local shl = 1.4 + mid * 1.3 + e * 0.6 + kl * 1 + hi * 0.5
+    local segs = 18
+    for gi = 0, GRN - 1 do
+      local r0 = GR0 + gi * GRD + lo * 0.5 * math.sin(T * 2 + gi)
+      local kw = 0
+      for _, W in ipairs(kwave) do
+        local kr = GR0 + (T - W.t0) * 130
+        kw = kw + W.v * 1.7 * math.exp(-((r0 - kr) / 3) ^ 2) * math.max(0, 1 - (T - W.t0) * 3)
+      end
+      -- (black vinyl: a groove shows only where the light or a wave catches it)
+      local base = 0.12 + e * 0.1 + kw + lo * 0.12
+      local px, py
+      for k = 0, segs do
+        local a = k / segs * K.TAU
+        local r = r0 + warp * math.sin(2 * (a - rot)) * (r0 / 40) + wob * r0
+        local x, y = pxy(a, r)
+        if px then
+          local am = a - K.TAU / segs * 0.5
+          local sh = math.max(0, math.cos(2 * (am - ash))) ^ 8
+          local l = base + sh * shl
+          if l >= 0.5 then line(l, px, py, x, y) end
+        end
+        px, py = x, y
+      end
+    end
+    for i = #kwave, 1, -1 do if T - kwave[i].t0 > 0.4 then table.remove(kwave, i) end end
+
+    -- the marks cut in the vinyl, turning with it, fading over a few turns
+    for i = #pmarks, 1, -1 do
+      local m = pmarks[i]
+      local age = T - m.t0
+      local lv = m.lv * math.exp(-age / (per * (1 + e * 0.5 + kl)))
+      if lv < 0.8 then table.remove(pmarks, i)
+      else
+        local a0 = m.a + rot
+        local r = m.r + warp * math.sin(2 * (a0 - rot)) * (m.r / 40) + wob * m.r
+        local l = math.min(12, lv * (0.6 + e * 0.2) + mid * 0.8)
+        if m.kind == 2 then
+          for d = 0, 1 do
+            local aa = a0 + d * 0.22
+            local x0, y0 = pxy(aa, r)
+            local x1, y1 = pxy(aa + m.len * 0.5, r)
+            line(l, x0, y0, x1, y1)
+          end
+        elseif m.kind == 3 or m.kind == 5 then
+          local x0, y0 = pxy(a0, r - 1.2)
+          local x1, y1 = pxy(a0, r + 1.2)
+          line(l, x0, y0, x1, y1)
+        else
+          local n = math.max(1, math.floor(m.len / 0.14))
+          local px, py = pxy(a0, r)
+          for k = 1, n do
+            local x, y = pxy(a0 + m.len * k / n, r)
+            line(l * (1 - 0.25 * k / n), px, py, x, y)
+            px, py = x, y
+          end
+        end
+        -- chaos doubles the cut a groove over
+        if c > 0.45 and i % 2 == 0 then
+          local x0, y0 = pxy(a0 + m.j * 0.2, r + GRD)
+          local x1, y1 = pxy(a0 + m.j * 0.2 + math.max(0.06, m.len), r + GRD)
+          line(l * 0.45 * c, x0, y0, x1, y1)
+        end
+      end
+    end
+
+    -- the label: printed halves turning, thumping on the kick, a bell's ping
+    local lr = 9.5 + lthump * 0.8
+    oval(1.5 + mid * 1.5 + lthump * 1.5 + e * 0.5, PCX, PCY, lr, lr * PSQ)
+    local la = rot
+    local ax, ay = math.cos(la) * (lr - 1.5), math.sin(la) * (lr - 1.5) * PSQ
+    line(3.5 + mid * 3 + lthump * 3, PCX - ax, PCY - ay, PCX + ax, PCY + ay)
+    local bx, by = pxy(la + 1.9, lr * 0.55)
+    put(3 + mid * 3 + e * 2, bx - 1, by, 3, 1)
+    K.ring(2 + lthump * 4, PCX, PCY, lr + 0.5, 12, 0, K.TAU, PSQ)
+    put(9 + lthump * 3, PCX - 1, PCY - 1, 2, 2)                  -- the spindle
+
+    -- the tonearm: pivot, arm, headshell, the needle's spark
+    local nx, ny = pxy(NA, rn)
+    ny = ny - arm * 1.5
+    K.ring(2.5 + e, PIV_X, PIV_Y, 4.5, 10)
+    put(3 + e * 2, PIV_X - 1, PIV_Y - 1, 3, 3)
+    line(2.5 + e, PIV_X + 3, PIV_Y - 3, 124, 1)                    -- the counterweight's rod
+    put(2.5 + lo * 2, 121, 1, 4, 3)
+    local ex, ey = nx + 9, ny - 9                                  -- the elbow
+    line(4 + e * 1.5 + arm * 2, PIV_X, PIV_Y, ex, ey)
+    line(4 + e * 1.5 + arm * 2, ex, ey, nx + 2, ny - 2)
+    put(4 + arm * 3, nx, ny - 3, 4, 2)                              -- the headshell
+    put(math.min(13, 3 + nsp * 10 + hi * 2), nx, ny, 1, 1)
+    if nsp > 0.2 then put(nsp * 5, nx - 1, ny + 1, 3, 1) end
+
+    -- open hats lift dust off the vinyl, the highs glint it all over
+    for i = #motes, 1, -1 do
+      local P = motes[i]
+      local u = (T - P.t0) / 0.9
+      if u >= 1 then table.remove(motes, i)
+      elseif u >= 0 then
+        local x, y = pxy(P.a + rot * 0.15, P.r)
+        put(P.lv * (1 - u), x, y - u * 7, 1, 1)
+      end
+    end
+    -- (fixed specks of dust turning with the record, lit by the highs)
+    for k = 0, 23 do
+      local x, y = pxy(K.hash(k, 61) * K.TAU + rot, 12 + K.hash(k, 62) * 30)
+      local tw = 0.5 + 0.5 * math.sin(T * (6 + K.hash(k, 63) * 5) + k * 2.3)
+      put(hi * (1 + 5 * tw), x, y, 1, 1)
+    end
+    K.grain(function(u, w)
+      local a, r = u * K.TAU, 14 + w * 28
+      return pxy(a, r)
+    end, 2 + hi * 14 + e * 3 + K.env.tick * 10, 2 + hi * 5)
+    -- kickless: a haze hangs over the record
+    if kl > 0.05 then K.haze(14, 12, 96, 56, kl * 0.28, 1, T * 3) end
+  end
+
   function M.draw(S)
     glow = K.follow(glow, 0, 0.35, K.DT)
     gs = K.follow(gs, glow, 0.08, K.DT)
@@ -592,9 +992,16 @@ return function(K)
     flash = flash * math.exp(-K.DT / 0.2)
     siren = siren * math.exp(-K.DT / 0.6)
     ghost = ghost * math.exp(-K.DT / 0.3)
+    splice = splice * math.exp(-K.DT / 0.25)
+    local pl = math.floor(K.num(S and S.phrase_len, 16))
+    if not (pl >= 1 and pl <= 256) then pl = 16 end
+    local pto = clamp((K.num(S and S.phrase_pos, 0) % pl + K.bar_ph) / pl, 0, 1)
+    pp = K.follow(pp, pto, 0.5, K.DT)
     if K.view == 2 then
       echoes(K.chaos)
       draw2(S)
+    elseif K.view == 3 then
+      draw3(S)
     else
       draw1(S)
     end

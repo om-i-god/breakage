@@ -1,22 +1,51 @@
 -- glitch. view 1: a circuit board close up: a clock chip feeding six voice chips down a bus of copper traces, vias, parts and a sheen moving over the solder mask.
 -- view 2: a datamoshed picture: a sun on a gridded horizon drawn in halftone blocks that the drums shift, smear, repeat and corrupt, healing slowly.
+-- view 3: the signal as a waterfall: ridge after ridge of its spectrum receding into the dark, each voice raising its own peak, sorted and stuttered by the glitches.
 --
 -- view 1: every hit sends a pulse racing from the clock chip down its trace
 -- to that voice's chip (kick, snare, hats top; perc, ticks, breaks below),
--- which lights when it lands; reversed break slices run back to the clock;
--- a ratchet sends a train of pulses; error and crush ticks corrupt a trace
--- with a stutter of lit segments; a fill fires every trace at once. energy
--- fills the bus with faint idle data and brightens the board, chaos reroutes
--- traces through detours and shorts the bus with sparks (and misroutes some
--- pulses), kickless stretches dim the board and the kick chip and leave the
--- clock breathing with slow idle data on every trace.
+-- which lights when it lands: a closed hat is a short quick blip, an open
+-- hat a long slow smear, a clap two pulses close together, each perc kind
+-- its own shape (a block, a pair of dots, a hollow box); reversed break
+-- slices run back to the clock; a ratchet sends a train of pulses; error
+-- and crush ticks corrupt a trace with a stutter of lit segments; a fill
+-- fires every trace at once. the kick also runs a ripple out along the two
+-- power rails. the edge connector is a logic probe stepping through the
+-- bar, the status LEDs fill up through the phrase, every bar the clock's
+-- pads blink and every phrase a bright sheen sweeps the board. AMP lights
+-- the chips and the fingers, LO the rails, the clock and the cap, MID the
+-- copper, HI the vias and the sheen. energy fills the bus with faint idle
+-- data and brightens the board, chaos reroutes traces through detours and
+-- shorts the bus with sparks (and misroutes some pulses), kickless
+-- stretches dim the board and the kick chip and leave the clock breathing
+-- with slow idle data on every trace.
 -- view 2: the kick pumps the sun and melts the blocks around it downward,
--- snares shove a band of blocks sideways, hats nudge single blocks, ticks
--- corrupt blocks into bit-noise stripes, perc freezes a block in time,
--- break slices slide a column of blocks, ratchets repeat one row down the
--- picture, a fill smears the whole image; everything heals back slowly.
--- energy grows the sun and lights the grid, chaos keeps blocks wobbling
--- loose, kickless sinks the sun to a ring and slows the ground.
+-- snares shove a band of blocks sideways, closed hats nudge one block,
+-- open hats smear a cluster, ticks corrupt blocks into bit-noise stripes,
+-- each perc kind freezes its own block in time, break slices slide a
+-- column of blocks, ratchets repeat one row down the picture, a fill smears
+-- the whole image; everything heals back slowly. the sun climbs through
+-- the phrase, every bar a keyframe line sweeps down healing the blocks it
+-- passes, and on the phrase edge the picture blooms: every block drifts
+-- along the last hit's motion for a beat. AMP lights the picture, LO heaves
+-- the ground and swells the sun, MID lights the road, HI the stars and the
+-- sun's halo. energy grows the sun and lights the grid, chaos keeps blocks
+-- wobbling loose, kickless sinks the sun to a ring and slows the ground.
+-- view 3: a new ridge leaves the front every 16th and recedes up the
+-- screen; the front ridge is now. the kick throws up a peak in the lows,
+-- the snare one in the mids, the clap a double peak beside it, closed
+-- hats a narrow spike in the highs and open hats a ragged plateau, each
+-- perc kind a needle at its own place, ticks a single hair, break slices
+-- a hump that walks across with the slice (mirrored when reversed). a
+-- ratchet stutters the same ridge out again and again, a fill runs a
+-- bright wave back through the stack. the first ridge of each bar is lit
+-- and drawn on into the floor (the bars recede as a grid), the phrase's
+-- first is brighter with posts at its ends, and the strip at the top
+-- counts the bar and the phrase. AMP raises the noise floor and lights the
+-- bits, LO the low hump and the ground under the front ridge, MID the mid
+-- hump and the ridges, HI the high spikes and sparks over them. energy
+-- heightens every ridge, chaos shifts and pixel-sorts them, kickless
+-- slows the fall and lays mist over the far ridges.
 return function(K)
   local M = {}
   local put, line, A, clamp = K.put, K.line, K.A, K.clamp
@@ -77,7 +106,11 @@ return function(K)
 
   local pulses, corrupt, lit, sparks
   local clkf, idle_k, sheen_k
+  local clks, litf = 0, {0, 0, 0, 0, 0, 0}   -- eased: the big fills never jump
   local MAXP = 28
+  local rails                           -- kick ripples along the power rails: t0, v
+  local barf, phf, phx                  -- bar blink, phrase sheen sweep
+  local phrase_u = 0                    -- 0..1 through the phrase
 
   ---------------------------------------------------------------- view 2
   local HY = 36                         -- the horizon
@@ -85,6 +118,21 @@ return function(K)
   local blk                             -- per block: ox, oy, frz, ft, cor
   local rep                             -- repeated rows: {row, src, t}
   local pump, pump_t, smear
+  local key_t                           -- the keyframe line's start (bar)
+  local mosh, mdx, mdy                  -- the phrase bloom and its motion
+
+  ---------------------------------------------------------------- view 3
+  local NRID, NCOL = 13, 32             -- ridges, segments per ridge
+  local rows                            -- rows[1] newest: {h = {0..NCOL}, bar, phr, sh, srt}
+  local row_t                           -- K.T at the last capture
+  local live = {}                       -- the front ridge, now
+  local hold3 = {}                      -- the peak of live since the last capture
+  local spikes                          -- perc / tick / break needles: f, w, v, t0, tau
+  local stut, stut_n                    -- a ratchet's frozen ridge, how many more
+  local mark_bar, mark_phr, rev_next
+  local fill3                           -- K.T when a fill wave set off
+  local hz = {}                         -- the hidden-line horizon per screen x
+  local rid_id = 0
 
   function M.init()
     pulses, corrupt, sparks = {}, {}, {}
@@ -95,6 +143,12 @@ return function(K)
     for i = 0, BC * BR - 1 do blk[i] = {ox = 0, oy = 0, px = 0, py = 0, frz = 0, ft = 0, cor = 0} end
     rep = {}
     pump, pump_t, smear = 0, 0, 0
+    key_t, mosh, mdx, mdy = -9, 0, 0, 0
+    rails, barf, phf, phx = {}, 0, 0, -99
+    rows, row_t, spikes = {}, 0, {}
+    stut, stut_n, mark_bar, mark_phr, rev_next = nil, 0, false, false, false
+    fill3 = -9
+    for c = 0, NCOL do live[c], hold3[c] = 0, 0 end
   end
   M.clear = M.init
 
@@ -103,7 +157,7 @@ return function(K)
     return ROUTE[v]
   end
 
-  local function send(v, lv, back, delay)
+  local function send(v, lv, back, delay, spd, tail, shape)
     if #pulses >= MAXP then table.remove(pulses, 1) end
     local to = v
     -- chaos misroutes some
@@ -111,7 +165,8 @@ return function(K)
       to = 1 + floor(K.rnd() * NV)
       if #sparks < 10 then sparks[#sparks + 1] = {x = 24 + K.rnd() * 60, y = 24 + floor(K.rnd() * 5) * 3, t0 = K.T} end
     end
-    pulses[#pulses + 1] = {v = to, s = -(delay or 0), lv = lv, back = back == true, idle = false}
+    pulses[#pulses + 1] = {v = to, s = -(delay or 0), lv = lv, back = back == true, idle = false,
+      spd = spd or 1, tail = tail or 4, shape = shape or 0}
     if v == 1 or lv > 8 then clkf = math.max(clkf, lv / 10) end
   end
 
@@ -125,10 +180,19 @@ return function(K)
   end
 
   ---------------------------------------------------------------- events
+  -- (view 3) a needle in the spectrum: at f (0..1), width w, decaying
+  local function spike(f, w, v, tau)
+    if #spikes >= 16 then table.remove(spikes, 1) end
+    spikes[#spikes + 1] = {f = f, w = w, v = v, t0 = K.T, tau = tau}
+  end
+  local function moved(dx, dy) mdx, mdy = clamp(dx, -6, 6), clamp(dy, -6, 6) end
+
   function M.kick(v)
     v = K.num(v, 1)
     send(1, 6 + 5 * v)
     pump_t = 1
+    if #rails >= 4 then table.remove(rails, 1) end
+    rails[#rails + 1] = {t0 = K.T, v = v}
     -- melt the blocks around the sun downward
     for c = 6, 9 do
       for r = 2, 4 do
@@ -136,34 +200,63 @@ return function(K)
         b.oy = b.oy - (2 + 3 * v) * K.hash(c * 9 + r + floor(K.T * 7), 6)
       end
     end
+    moved(0, -3)
   end
 
   function M.snare(v, n)
     v = K.num(v, 1)
     send(2, 6 + 5 * v)
     local r = floor(K.rnd() * BR)
-    shove_row(r, (K.rnd() < 0.5 and -1 or 1) * (4 + 5 * v))
+    local dx = (K.rnd() < 0.5 and -1 or 1) * (4 + 5 * v)
+    shove_row(r, dx)
+    moved(dx * 0.5, 0)
   end
-  function M.clap(v) M.snare(K.num(v, 1) * 0.8) end
+
+  function M.clap(v)
+    v = K.num(v, 1)
+    send(2, 5 + 4 * v)
+    send(2, 4 + 3 * v, false, 9)
+    local r = floor(K.rnd() * (BR - 1))
+    local dx = (K.rnd() < 0.5 and -1 or 1) * (3 + 3 * v)
+    shove_row(r, dx); shove_row(r + 1, -dx)
+    spike(0.38, 0.03, 0.9 * v, 0.12)
+    spike(0.53, 0.03, 0.8 * v, 0.14)
+  end
 
   function M.hat(v, open)
     v = K.num(v, 1)
-    send(3, (open and 5 or 3) + 2 * v)
-    local b = blk[floor(K.rnd() * BC * BR)]
-    b.ox = b.ox + (K.rnd() - 0.5) * 6
-    if open then b.oy = b.oy + (K.rnd() - 0.5) * 6 end
+    if open then
+      -- a long slow smear down the trace; a cluster of blocks smeared
+      send(3, 4 + 2 * v, false, 0, 0.55, 9, 0)
+      local c, r = floor(K.rnd() * (BC - 2)), floor(K.rnd() * (BR - 1))
+      local dx = (K.rnd() < 0.5 and -1 or 1) * 5
+      for i = 0, 2 do for j = 0, 1 do
+        local b = blk[bi(c + i, r + j)]
+        b.ox = b.ox + dx * (1 - i * 0.25)
+      end end
+      moved(dx * 0.4, 0)
+    else
+      -- a short quick blip; one block nudged
+      send(3, 3 + 3 * v, false, 0, 1.4, 1, 0)
+      local b = blk[floor(K.rnd() * BC * BR)]
+      b.ox = b.ox + (K.rnd() < 0.5 and -2 or 2)
+    end
   end
 
   function M.perc(kind, v)
+    kind = clamp(floor(K.num(kind, 1)), 1, 21)
     v = K.num(v, 1)
-    send(4, 5 + 4 * v)
-    local b = blk[floor(K.rnd() * BC * BR)]
-    b.frz, b.ft = 0.8 + v * 0.6, K.T - 0.5
+    send(4, 5 + 4 * v, false, 0, 0.9, 3, kind % 3)
+    -- each kind freezes its own block
+    local b = blk[floor(K.hash(kind, 7) * BC * BR) % (BC * BR)]
+    b.frz, b.ft = 0.8 + v * 0.6, K.T - 0.3 - K.hash(kind, 8)
     if kind == 11 or kind == 8 then lit[4] = math.max(lit[4], 0.5) end
+    spike(0.22 + K.hash(kind, 9) * 0.5, 0.015 + (kind % 3) * 0.01, 0.6 + 0.4 * v, 0.15)
   end
   function M.tom(v) M.perc(1, v) end
 
   function M.tick(kind)
+    kind = floor(K.num(kind, 1))
     if kind == 7 or kind == 3 then
       local v = 1 + floor(K.rnd() * NV)
       local P = ROUTE[v]
@@ -172,10 +265,11 @@ return function(K)
       local b = blk[floor(K.rnd() * BC * BR)]
       b.cor = 1
     else
-      send(5, 5)
+      send(5, 5, false, 0, 1.6, 0, 0)
       local b = blk[floor(K.rnd() * BC * BR)]
       b.ox = b.ox + (K.rnd() - 0.5) * 4
     end
+    spike(0.9 + K.rnd() * 0.08, 0.008, 0.7, 0.07)
   end
 
   function M.brk(s, n, rev)
@@ -186,6 +280,8 @@ return function(K)
       local b = blk[bi(c, r)]
       b.oy = b.oy + (rev and -4 or 4)
     end
+    spike(0.15 + 0.7 * clamp((s - 0.5) / n, 0, 1), 0.05, 0.7, 0.1)
+    if rev then rev_next = true end
   end
 
   function M.ratchet(n, voice)
@@ -197,11 +293,29 @@ return function(K)
     for k = 1, math.min(n, 3, BR - 1 - r) do
       if #rep < 24 then rep[#rep + 1] = {row = r + k, src = r, t0 = K.T + k * 0.06, t = K.T + 0.35 + n * 0.05 + k * 0.06} end
     end
+    -- stutter the front ridge out n times
+    stut = {}
+    for c = 0, NCOL do stut[c] = live[c] + 3 end
+    stut_n = math.min(n, 6)
   end
 
   function M.fill()
     for v = 1, NV do send(v, 9) end
     smear = 1
+    fill3 = K.T
+  end
+
+  function M.bar(S)
+    barf = 1
+    key_t = K.T
+    mark_bar = true
+    local pl = math.max(1, floor(K.num(S and S.phrase_len, 16)))
+    local pp = floor(K.num(S and S.phrase_pos, 1))
+    if pp % pl == 0 then
+      phx = K.T
+      mosh = 1
+      mark_phr = true
+    end
   end
 
   ---------------------------------------------------------------- view 1 draw
@@ -221,8 +335,15 @@ return function(K)
 
   local function sheen(x, y)
     local d = (x + y * 0.8 - sheen_k) % 220
-    if d < 26 then return math.sin(d / 26 * math.pi) end
-    return 0
+    local v = 0
+    if d < 26 then v = math.sin(d / 26 * math.pi) end
+    -- the phrase sweep: a brighter band crossing the board once
+    if phf > 0.02 then
+      local p = (K.T - phx) * 110 - 30
+      local q = math.abs(x + y * 0.8 - p)
+      if q < 10 then v = v + phf * 1.6 * (1 - q / 10) end
+    end
+    return v
   end
 
   local function trace(P, base, hi)
@@ -263,7 +384,11 @@ return function(K)
     local dim = 1 - kl * 0.35
     sheen_k = (T * 22) % 220
     clkf = clkf * math.exp(-DT / 0.12)
-    for v = 1, NV do lit[v] = lit[v] * math.exp(-DT / 0.22) end
+    clks = K.follow(clks, clkf, 0.06, DT)
+    for v = 1, NV do
+      lit[v] = lit[v] * math.exp(-DT / 0.22)
+      litf[v] = K.follow(litf[v], lit[v], 0.06, DT)
+    end
 
     -- idle data: faint pulses down random traces (more with energy, every
     -- trace in a kickless stretch)
@@ -284,8 +409,34 @@ return function(K)
       local x = 112 + k * 3
       line(1 * dim, x, 14 + k * 2, x + 8, 22 + k * 2)
     end
-    for k = 0, 6 do
-      put(1.5 + amp * 2 + (k % 2) * mid, 50 + k * 4, 63, 2, 1)
+    -- the edge connector: a logic probe stepping through the bar
+    local bp = K.bar_ph * 16
+    for k = 0, 15 do
+      local d = (bp - k) % 16
+      local tr = d < 4 and (1 - d / 4) or 0
+      put(1.2 + amp * 1.5 + tr * (3 + amp * 4 + K.env.kick * 3), 46 + k * 2, 63, 1, 1)
+    end
+    -- the status LEDs: filling up through the phrase
+    local pn = phrase_u * 8
+    for k = 0, 7 do
+      local on = k < floor(pn) and 1 or 0
+      local cur = (k == floor(pn)) and (0.5 + 0.5 * math.sin(T * 6)) or 0
+      put(1 + on * (2 + amp * 2) + cur * 3 + barf * on * 2, 111 + k * 2, 45, 1, 2)
+    end
+    -- the power rails, a kick's ripple running out along them
+    for ry = 17, 47, 30 do
+      K.dashes((1 + lo * 1.5) * dim, ry, 3, 6, T * (3 + lo * 14), 20, 110)
+    end
+    for k = #rails, 1, -1 do
+      local R = rails[k]
+      local u = (T - R.t0) / 0.5
+      if u >= 1 then table.remove(rails, k)
+      else
+        local x = 18 + u * 95
+        local l = (3 + 6 * R.v) * (1 - u) * dim
+        put(l, x, 17, 5, 1); put(l * 0.5, x - 5, 17, 5, 1)
+        put(l, x, 47, 5, 1); put(l * 0.5, x - 5, 47, 5, 1)
+      end
     end
     -- dim side traces between the vias
     for k = 1, #VIAS - 1, 2 do
@@ -314,7 +465,7 @@ return function(K)
       trace(P, tb * d + lit[v] * 3, 1.5 + hi * 6 + e * 1.5)
     end
     -- the bus's pads at the clock
-    for v = 1, NV do put(2.5 + lit[v] * 3, CLK.x + CLK.w, CHIPS[v].bus - 1, 2, 3) end
+    for v = 1, NV do put(2.5 + lit[v] * 3 + barf * 3, CLK.x + CLK.w, CHIPS[v].bus - 1, 2, 3) end
 
     -- shorts (chaos): sparks across the bus, flickering smoothly
     if c > 0.4 then
@@ -357,20 +508,30 @@ return function(K)
     for k = #pulses, 1, -1 do
       local p = pulses[k]
       local P = path(p.v)
-      p.s = p.s + spd * DT * (p.idle and 0.45 or 1)
+      p.s = p.s + spd * DT * (p.idle and 0.45 or p.spd or 1)
       if p.s >= P.total then
         if not p.idle then lit[p.v] = math.max(lit[p.v], p.lv / 10) end
         table.remove(pulses, k)
       elseif p.s >= 0 then
         local s = p.back and (P.total - p.s) or p.s
         local dir = p.back and 1 or -1
-        local tail = p.idle and 3 or 4
+        local tail = p.idle and 3 or (p.tail or 4)
         for j = tail, 0, -1 do
           local x, y = at(P, s + dir * j * 2)
           local l = p.lv * (1 - j / (tail + 1))
           if j == 0 and not p.idle then
-            put(l * 0.45, x - 2, y - 2, 5, 5)
-            put(math.min(12, l), x - 1, y - 1, 3, 3)
+            local sh = p.shape or 0
+            if sh == 1 then
+              put(math.min(12, l), x - 2, y - 1, 2, 2)
+              put(math.min(12, l), x + 1, y - 1, 2, 2)
+            elseif sh == 2 then
+              local m = math.min(12, l)
+              put(m, x - 2, y - 2, 5, 1); put(m, x - 2, y + 2, 5, 1)
+              put(m, x - 2, y - 1, 1, 3); put(m, x + 2, y - 1, 1, 3)
+            else
+              put(l * 0.45, x - 2, y - 2, 5, 5)
+              put(math.min(12, l), x - 1, y - 1, 3, 3)
+            end
           else put(l * 0.8, x, y, 1, 1) end
         end
       end
@@ -379,12 +540,12 @@ return function(K)
     -- the chips
     for v = 1, NV do
       local d = (v == 1) and (1 - kl * 0.6) or dim
-      local l = lit[v] * 10 + (v == 1 and lo * 2 or 0) + (v == 3 and hi * 2 or 0)
-      chip(CHIPS[v], l, lit[v], d)
+      local l = lit[v] * 10 + (v == 1 and lo * 2 or 0) + (v == 3 and hi * 2 or 0) + amp * 3
+      chip(CHIPS[v], l, litf[v], d)
     end
     -- the clock chip: its can, its LED keeping time
     local C = CLK
-    put((1 + clkf * 5 + lo * 2.5) * dim, C.x + 1, C.y + 1, C.w - 2, C.h - 2)
+    put((1 + clks * 4 + lo * 2.5) * dim, C.x + 1, C.y + 1, C.w - 2, C.h - 2)
     line(2.5 + clkf * 4 + lo * 1.5, C.x, C.y, C.x + C.w - 1, C.y)
     line(2, C.x, C.y + 1, C.x, C.y + C.h - 1)
     line(2 + clkf * 3, C.x + C.w - 1, C.y + 1, C.x + C.w - 1, C.y + C.h - 1)
@@ -468,16 +629,24 @@ return function(K)
     smear = smear * math.exp(-DT / 0.6)
     kls = kl
     gs = clamp(e * 0.6 + mid * 0.4, 0, 1)
-    sun_y = 26 + kl * 9 - pump * 1.5
+    sun_y = 30 - phrase_u * 7 + kl * 9 - pump * 1.5
     sun_r = 8 + e * 2 + pump * 2 + lo * 2
     lvk = 0.6 + amp * 0.5
     sp_hi, mid_v = hi, mid
     heave = lo + pump * 0.5
-    -- heal
+    -- heal; the bar's keyframe line heals the rows it passes faster, the
+    -- phrase bloom drags every block along the last hit's motion
     local heal = math.exp(-DT / 1.4)
+    local ky = (T - key_t) / math.max(0.2, K.beat_sec * 1.5) * 72 - 4
+    local kh = math.exp(-DT / 0.12)
+    local md = mosh * DT * 7
     for i = 0, BC * BR - 1 do
       local b = blk[i]
-      b.ox, b.oy = clamp(b.ox * heal, -10, 10), clamp(b.oy * heal, -8, 8)
+      local h = heal
+      local ry = (i // BC) * 8
+      if ky > ry - 2 and ky < ry + 10 then h = kh end
+      b.ox, b.oy = clamp(b.ox * h + mdx * md * (0.5 + K.hash(i, 3)), -10, 10),
+        clamp(b.oy * h + mdy * md * (0.5 + K.hash(i, 4)), -8, 8)
       -- the shown offset slides toward the target (a smear, not a jump)
       local mx = 24 * DT
       b.px = b.px + clamp(b.ox - b.px, -mx, mx)
@@ -532,11 +701,233 @@ return function(K)
     end
     -- the horizon line, held across the blocks
     K.dashes(2 + lo * 2 + amp, HY, 6, 8, T * 3)
+    -- the keyframe line sweeping down on the bar
+    if ky > -2 and ky < 66 then
+      local u = clamp(ky / 64, 0, 1)
+      K.dashes(2 + 4 * (1 - u) + hi * 2, floor(ky), 3, 5, T * 40)
+    end
     K.grain(function(u, v) return u * 128, v * 64 end, 2 + hi * 10 + c * 8, 4 + hi * 3)
   end
 
+  ---------------------------------------------------------------- view 3 draw
+  local exp = math.exp
+  local function bump(f, c, w) local d = (f - c) / w; return exp(-d * d) end
+
+  -- the spectrum now, into live[0..NCOL] (px of height at the front)
+  local function spectrum(e, kl)
+    local T, env = K.T, K.env
+    local amp, lo, mid, hi = A[K.AMP], A[K.LO], A[K.MID], A[K.HI]
+    local g = 0.7 + 0.6 * e
+    local rag = floor(T * 15)
+    for c = 0, NCOL do
+      local f = c / NCOL
+      local h = (0.8 + amp * 2.5) * (0.55 + 0.45 * math.sin(c * 0.7 + T * 1.3))
+        * (0.6 + 0.4 * math.sin(c * 0.23 - T * 0.7))
+        + (4 + amp * 2) * (0.5 + 0.5 * math.sin(c * 0.31 + T * 0.9))
+        * (0.5 + 0.5 * math.sin(c * 0.13 - T * 0.4 + 1))
+        + (4 + mid * 3) * bump(f, 0.5 + 0.38 * math.sin(T * 0.37), 0.06)
+      h = h + bump(f, 0.14, 0.07) * (lo * 7 + env.kick * 13 * (1 - kl)
+        + kl * 2.5 * (0.5 + 0.5 * math.sin(T * 0.6)))
+      h = h + bump(f, 0.46, 0.08) * (mid * 5 + env.snare * 10)
+      h = h + bump(f, 0.78, 0.045) * (hi * 5 + env.hat * 9)
+      if f > 0.6 and f < 0.97 then h = h + env.ohat * (4 + 4 * K.hash(c + rag * 37, 31)) end
+      for i = 1, #spikes do
+        local sp = spikes[i]
+        local a = sp.v * exp(-(T - sp.t0) / sp.tau) * 12
+        if a > 0.2 then h = h + a * bump(f, sp.f, sp.w) end
+      end
+      local to = clamp(h * g, 0, 24)
+      live[c] = K.follow(live[c], to, to > live[c] and 0.035 or 0.12, K.DT)
+    end
+  end
+
+  local function capture(rdt)
+    local h = {}
+    local src = hold3
+    if stut and stut_n > 0 then src = stut; stut_n = stut_n - 1 end
+    for c = 0, NCOL do h[c] = src[c] end
+    for c = 0, NCOL do hold3[c] = live[c] end
+    if rev_next then
+      for c = 0, NCOL // 2 do h[c], h[NCOL - c] = h[NCOL - c], h[c] end
+      rev_next = false
+    end
+    local c = K.chaos
+    rid_id = rid_id + 1
+    local row = {h = h, bar = mark_bar, phr = mark_phr, sh = 0, drop = K.rnd() < c * 0.25,
+      ox = (rid_id % 2) * 2}
+    if K.rnd() < c * 0.5 then row.sh = (K.rnd() - 0.5) * c * 30 end
+    -- pixel-sort a window of the ridge, tallest first
+    if K.rnd() < c - 0.3 then
+      local a0 = floor(K.rnd() * (NCOL - 8))
+      local a1 = math.min(NCOL, a0 + 6 + floor(K.rnd() * 12))
+      local w = {}
+      for k = a0, a1 do w[#w + 1] = h[k] end
+      table.sort(w, function(x, y) return x > y end)
+      for k = a0, a1 do h[k] = w[k - a0 + 1] end
+    end
+    mark_bar, mark_phr = false, false
+    table.insert(rows, 1, row)
+    if #rows > NRID then rows[#rows] = nil end
+  end
+
+  local function draw3(S)
+    local T, DT, e, c, kl = K.T, K.DT, K.energy, K.chaos, K.kickless
+    local lo, hi, mid, amp = A[K.LO], A[K.HI], A[K.MID], A[K.AMP]
+    local env = K.env
+    for i = #spikes, 1, -1 do
+      local sp = spikes[i]
+      if T - sp.t0 > sp.tau * 5 or T < sp.t0 then table.remove(spikes, i) end
+    end
+    spectrum(e, kl)
+    for cc = 0, NCOL do if live[cc] > hold3[cc] then hold3[cc] = live[cc] end end
+    local rdt = clamp(K.beat_sec * 2, 0.4, 2) * (1 + kl * 0.6)
+    if T - row_t > rdt * 4 or T < row_t then row_t = T - rdt end
+    while T - row_t >= rdt do
+      row_t = row_t + rdt
+      capture(rdt)
+    end
+    local frac = clamp((T - row_t) / rdt, 0, 1)
+
+    -- the strip at the top: bits of data lit by the level, filling up
+    -- through the phrase, and the bar's steps under them
+    local bk = floor(T * 6)
+    local pf = phrase_u * 32
+    for k = 0, 31 do
+      local on = K.hash(k + bk * 33, 40) < 0.3 + amp * 0.4
+      local ph = k < pf
+      if on or ph then
+        put((on and (1.2 + amp * 3 + hi * 1.5) or 0) + (ph and (1 + barf * 2) or 0), k * 4 + 1, 1, 1, 3)
+      end
+    end
+    local st = K.bar_ph * 16
+    for k = 0, 15 do
+      local d = (st - k) % 16
+      local tr = d < 3 and (1 - d / 3) or 0
+      put(1 + tr * (4 + env.kick * 4), k * 8 + 3, 5, 1, 2)
+    end
+
+    -- the ridges, front to back, each hiding what is behind it: a comb of
+    -- bars standing up from its floor line, capped where the bar ends
+    for x = 0, 127 do hz[x] = 64 end
+    local fz = (T - fill3) * 14
+    local n = #rows
+    for k = 0, n do
+      local h, z, row, fade
+      if k == 0 then h, z, row, fade = live, 0, nil, 1
+      else
+        row = rows[k]
+        h, z = row.h, k - 1 + frac
+        fade = (k == NRID) and (1 - frac) or 1
+      end
+      local sc = 1 / (1 + z * 0.1)
+      local yb = 61 - 3.6 * z + 0.08 * z * z
+      local xw = 1
+      -- each ridge's comb sits at its own fixed offset, so the bars only
+      -- ever move up and down as the stack recedes
+      local sh = row and (floor(row.sh) + row.ox) or 0
+      local fog = sc ^ 1.4
+      local lv = (0.8 + 3.4 * fog) * (0.75 + 0.4 * mid + 0.25 * e) * (1 - kl * 0.25)
+      local lvb = lv                    -- the bodies: steady, the caps take the hits
+      if k == 0 then lv = lv + 0.5 + env.kick * 2 * (1 - kl) + env.snare * 1.5 + amp end
+      local marked = row and row.bar
+      if marked then lv = lv * 1.25 + 0.6 end
+      if row and row.phr then lv = lv + 1.5 end
+      if fz < 18 then
+        local d = math.abs(z - fz)
+        if d < 1.5 then lv = lv + 5 * (1 - d / 1.5) * (1 - fz / 18) end
+      end
+      lv = math.min(12, lv * fade)
+      lvb = math.min(9, lvb * fade)
+      local cap = k < 4 or marked
+      local step = (k < 5) and 1 or 2
+      -- the bars
+      for cc = (k % 2 == 1 and step > 1) and 1 or 0, NCOL, step do
+        if not (row and row.drop and cc % 4 == 1) then
+          local x = cc * 4 + sh
+          if x >= 0 and x <= 127 then
+            local y = floor(yb - h[cc] * sc * 1.3 + 0.5)
+            local bot = math.min(floor(yb + 0.5) + 1, floor(hz[x]))
+            if bot > y then
+              local hl = math.min(13, lv * (0.55 + h[cc] / 30))
+              local bl = lvb * (0.45 + h[cc] / 45) * (k == 0 and 0.7 or 0.9)
+              if cap then
+                put(bl * 0.75, x, y + 1, 1, bot - y - 1)
+                put(math.min(13, hl + 1 + (k == 0 and hi * 2 or 0)), x, y, 1, 1)
+              else
+                put(bl * 0.8, x, y, 1, bot - y)
+              end
+            end
+          end
+        end
+      end
+      -- the front ridge, and each bar's first, are drawn as a line too
+      if k == 0 then
+        local px, py, pv
+        for cc = 0, NCOL do
+          local x = 64 + (cc * 4 - 64) * xw + sh
+          local y = yb - h[cc] * sc * 1.3
+          local ix = floor(x + 0.5)
+          local vis = ix >= 0 and ix <= 127 and y < hz[ix] - 0.5
+          if px and (vis or pv) then
+            local l = math.min(10, lv * 0.55 + (h[cc] + h[cc - 1]) * 0.06)
+            if vis and pv then line(l, px, py, x, y)
+            else
+              local mx, my = (px + x) / 2, (py + y) / 2
+              if vis then line(l, mx, my, x, y) else line(l, px, py, mx, my) end
+            end
+          end
+          px, py, pv = x, y, vis
+        end
+      end
+      -- the horizon now runs along this ridge
+      local qx, qy
+      local x0, x1 = 999, -999
+      for cc = 0, NCOL do
+        local x = 64 + (cc * 4 - 64) * xw + sh
+        local y = yb - h[cc] * sc * 1.3
+        if x < x0 then x0 = x end
+        if x > x1 then x1 = x end
+        if qx then
+          local a, b = math.max(0, math.ceil(qx)), math.min(127, floor(x))
+          for xx = a, b do
+            local u = (xx - qx) / math.max(0.01, x - qx)
+            local yy = qy + (y - qy) * u
+            if yy < hz[xx] then hz[xx] = yy end
+          end
+        end
+        qx, qy = x, y
+      end
+      -- a bar's ridge runs on into the floor, a phrase's has posts
+      if marked then
+        local gl = (1.5 + 2 * fog + lo * 2) * fade
+        local yy = floor(yb + 0.5)
+        put(gl, 0, yy, 1, 2); put(gl * 0.7, 2, yy, 1, 2)
+        put(gl, 127, yy, 1, 2); put(gl * 0.7, 125, yy, 1, 2)
+        if row.phr then
+          put(gl + 2, 0, yy - 5, 1, 5)
+          put(gl + 2, 127, yy - 5, 1, 5)
+        end
+      end
+    end
+
+    -- the far noise floor, where the ridges fade out
+    K.dashes(1 + amp * 0.8, 24, 2, 5, T * 2)
+    if kl > 0.05 then K.haze(0, 14, 128, 40, kl * 0.4, 1, T * 3) end
+    K.grain(function(u, v)
+      local x = floor(u * 127)
+      return x, math.max(8, hz[x] - 1 - v * 6)
+    end, 2 + hi * 14 + c * 6, 3 + hi * 5)
+  end
+
   function M.draw(S)
-    if K.view == 2 then draw2(S) else draw1(S) end
+    local DT = K.DT
+    barf = barf * math.exp(-DT / 0.15)
+    phf = math.max(0, 1 - (K.T - phx) / 1.6)
+    mosh = mosh * math.exp(-DT / (K.beat_sec * 0.8))
+    local pl = math.max(1, K.num(S and S.phrase_len, 16))
+    local pp = K.num(S and S.phrase_pos, 0) % pl
+    phrase_u = K.follow(phrase_u, clamp(pp / pl, 0, 1), 0.3, DT)
+    if K.view == 2 then draw2(S) elseif K.view == 3 then draw3(S) else draw1(S) end
   end
 
   M.init()

@@ -3,25 +3,41 @@
 -- blinders on the truss that fire on the claps.
 -- view 2: the drum machine's front panel up close: a 16-step pattern grid
 -- per voice with the running light, the step keys and the voice pads.
+-- view 3: the booth from the DJ's side: two decks, the mixer between them
+-- with its meters, and the floor beyond the booth's edge with its hands up.
 --
 -- view 1: the kick lifts the beams and drops the crowd's heads; claps fire
 -- the blinders and put hands up; open hats and rides flare the beams; the
 -- cowbell and hats throw glints off the mirror ball; a fill swings every
--- beam to the middle; a ratchet chases along the fixtures. energy brings up
--- more beams, more crowd and thicker haze, chaos splits and crosses the
--- beams and shakes the crowd, and kickless stretches tilt the beams up and
--- slow them while the crowd sways.
+-- beam to the middle; a ratchet chases along the fixtures. the truss
+-- brightens on the bar, and over the phrase more beams come on and more
+-- hands go up. energy brings up more beams, more crowd and thicker haze,
+-- chaos splits and crosses the beams and shakes the crowd, and kickless
+-- stretches tilt the beams up and slow them while the crowd sways.
 -- view 2: every hit lights its voice pad and its cell in the grid at the
 -- current step; the cells hold the last bars, so the grid shows the groove.
 -- the running light walks the step keys, a ratchet splits the current cell,
--- chaos throws ghost lights and shifts the rows, energy lights the panel.
+-- chaos throws ghost lights and shifts the rows, energy lights the panel;
+-- eight lamps by the tempo lamp fill over the phrase.
+-- view 3: the left deck plays; over the phrase the right deck is dropped in
+-- and the crossfader walks across. the kick thumps the playing labels and
+-- the level and low meters, the snare and clap put hands up beyond the
+-- booth and kick the mid meter, closed hats spark the needles and the high
+-- meter, open hats flare the gooseneck lamp, percs light the cue pads, a
+-- ratchet scratches the live deck back and forth, cuts the crossfader and
+-- runs the pads, a fill sweeps the filter knob and throws every hand up.
+-- energy brings more of the crowd and lights the decks, chaos pushes the
+-- platters about and wobbles the meters and the fader, kickless the low EQ
+-- is turned down and the crowd sways.
 --
 -- the ears: view 1, the lows lift the beams and the LED strip, the mids
 -- brighten the beams and get the crowd's hands up, the highs throw the
 -- mirror ball's spots over the wall and thicken the haze; view 2, the lows
 -- backlight the step keys and heave the output meter, the mids light the
 -- grid's column dividers, the highs flicker the LEDs, the knob caps and the
--- key strip between the kicks.
+-- key strip between the kicks; view 3, the four meters are the level, the
+-- lows, the mids and the highs, the lows also swell the platters' rims, the
+-- mids and highs the sheen on the vinyl, the level the wash on the far wall.
 return function(K)
   local M = {}
   local put, line, A, clamp = K.put, K.line, K.A, K.clamp
@@ -59,6 +75,12 @@ return function(K)
   -- view 2: the pattern memory, voices x 16 steps
   local NV = 5                          -- kick, clap/snare, hat, open/ride, perc
   local pat, pads, keyf, rat, rat_s
+  local pp = 0                          -- the phrase, eased (0 .. 1)
+
+  -- view 3: the booth
+  local drot = {0, 0}                   -- the decks' angles
+  local dspin = {1, 0}                  -- and speeds
+  local scratch, lamp, cuep, meter, peakh, bhands, filt
 
   function M.init()
     hands = {}
@@ -71,6 +93,19 @@ return function(K)
     keyf = {}
     for s = 0, 15 do keyf[s] = 0 end
     rat, rat_s = 0, 0
+    pp = 0
+    drot, dspin = {0, 0}, {1, 0}
+    scratch, lamp, filt = 0, 0, 0
+    cuep = {0, 0, 0, 0, 0, 0, 0, 0}
+    meter, peakh = {0, 0, 0, 0}, {0, 0, 0, 0}
+    bhands = {}
+    for i = 1, 14 do bhands[i] = 0 end
+  end
+  local function bhand(n, lv)
+    for _ = 1, n do
+      local i = 1 + math.floor(K.rnd() * 14)
+      bhands[i] = math.max(bhands[i], lv)
+    end
   end
   M.clear = M.init
 
@@ -96,6 +131,8 @@ return function(K)
   function M.kick(v)
     v = K.num(v, 1)
     mark(1, v)
+    meter[2] = math.max(meter[2], 0.6 + 0.4 * v)
+    meter[1] = math.max(meter[1], 0.5 + 0.4 * v)
   end
 
   function M.clap(v)
@@ -108,6 +145,8 @@ return function(K)
       local i = 1 + math.floor(K.rnd() * ROWS[ri].n)
       hands[ri][i] = 1
     end
+    bhand(n, 1)
+    meter[3] = math.max(meter[3], 0.5 + 0.4 * v)
   end
   function M.snare(v)
     v = K.num(v, 1)
@@ -117,6 +156,8 @@ return function(K)
       local i = 1 + math.floor(K.rnd() * ROWS[2].n)
       hands[2][i] = math.max(hands[2][i], 0.7)
     end
+    meter[3] = math.max(meter[3], 0.4 + 0.5 * v)
+    if K.rnd() < 0.5 then bhand(1, 0.7) end
   end
   function M.rim(v) mark(2, K.num(v, 1) * 0.5) end
 
@@ -126,10 +167,12 @@ return function(K)
       mark(4, v)
       flare = math.max(flare, 0.4 + 0.6 * v)
       glint(2, 4 + 5 * v)
+      lamp = math.max(lamp, 0.5 + 0.5 * v)
     else
       mark(3, v)
       if K.rnd() < 0.5 then glint(1, 2 + 3 * v) end
     end
+    meter[4] = math.max(meter[4], (open and 0.6 or 0.35) + 0.3 * v)
   end
   function M.ride(v) v = K.num(v, 1); mark(4, v * 0.8); flare = math.max(flare, 0.3 * v); glint(1, 3 + 3 * v) end
   function M.shaker(v) mark(3, K.num(v, 1) * 0.6) end
@@ -139,18 +182,23 @@ return function(K)
     mark(5, v)
     if kind == 3 then glint(4, 5 + 6 * v)      -- the cowbell: the ball lights up
     else glint(1, 3 + 4 * v) end
+    local k = 1 + (math.floor(K.num(kind, 1)) - 1) % 8
+    cuep[k] = math.max(cuep[k], 0.5 + 0.5 * v)
   end
   function M.tom(v) mark(5, K.num(v, 1)) end
   function M.tick() glint(1, 3) end
   function M.brk(s) s = K.num(s, 1); if s % 2 == 1 then mark(5, 0.35) end; if s % 4 == 1 then glint(1, 4) end end
 
-  function M.fill() conv = 1 end
+  function M.fill() conv = 1; filt = 1; bhand(8, 1) end
+  function M.bar() end
   function M.ratchet(n)
     n = clamp(math.floor(K.num(n, 2)), 1, 12)
     chase, chase_t = n, K.T
     rat, rat_s = n, cur_step()
     blind = math.max(blind, 0.45)
     glint(math.min(n, 5), 6)
+    scratch = 1
+    for k = 1, math.min(n, 8) do cuep[k] = math.max(cuep[k], 1 - k * 0.07) end
   end
 
   -- the crowd's top this frame (and where heads are), 1 px columns
@@ -164,7 +212,8 @@ return function(K)
         local h = hands[ri][i]
         hands[ri][i] = h * math.exp(-K.DT / 0.4)
         -- the body of the mix gets the hands up, each dancer on their own swing
-        local mid = A[K.MID]
+        -- (and as the phrase runs on, more hands go up)
+        local mid = math.min(1, A[K.MID] + pp * pp * 0.35)
         if mid > 0.1 and K.hash(i + ri * 31, 5) < 0.25 + mid * 0.6 then
           h = math.max(h, mid * (0.55 + 0.45 * math.sin(K.T * 2.1 + P.ph * 3)))
         end
@@ -257,8 +306,8 @@ return function(K)
     end
 
     -- the rig: the truss, the fixtures and the blinders
-    line(2, 0, 3, 127, 3)
-    line(2, 0, 7, 127, 7)
+    line(2 + K.bar_pulse * 2, 0, 3, 127, 3)
+    line(2 + K.bar_pulse * 2, 0, 7, 127, 7)
     for x = 0, 120, 8 do line(1.2, x, 3, x + 4, 7); line(1.2, x + 4, 7, x + 8, 3) end
     for k = 0, 3 do
       local bx = 20 + k * 28
@@ -267,7 +316,7 @@ return function(K)
 
     -- beams: they sweep in mirrored pairs on the bar, lift on the kick,
     -- flare on open hats, swing to the middle on a fill
-    local nb = math.floor(2 + e * 4 + 0.5)
+    local nb = math.floor(2 + e * 4 + pp * 1.5 + 0.5)
     local sw = (0.6 + 0.4 * playing) * (1 - kl * 0.5)
     -- the sweep: slow at rest, half a swing a bar when playing
     sph = (sph + K.DTS * (0.35 * sw + playing * (1 - kl * 0.6) * math.pi / (4 * K.beat_sec))) % 1000
@@ -383,6 +432,11 @@ return function(K)
     local beat_on = playing and (K.beat_ph < 0.15) and 1 or 0
     put(2 + beat_on * 9 + (idle and (1.5 + 1.5 * math.sin(T * 2)) or 0), 114, 6, 4, 2)
     put(1.5 + kl * 8, 114, 10, 4, 1)                 -- the kick-mute lamp
+    -- the phrase: eight lamps fill over it
+    local pf = pp * 8
+    for k = 0, 7 do
+      put(1 + clamp(pf - k, 0, 1) * 2.5 + ((k == math.floor(pf)) and K.bar_pulse * 4 or 0), 107 + (k % 4) * 4, 1 + (k // 4) * 2 + 1, 2, 1)
+    end
 
     -- voice pads at the row heads, and the grid
     local dec = math.exp(-DT / math.max(0.5, K.beat_sec * 6))
@@ -466,6 +520,165 @@ return function(K)
     put(2 + lo * 4, 4 + ml * 4, 58, 1, 3)
   end
 
+  ---------------------------------------------------------------- view 3
+  -- the booth from the DJ's side: two decks, the mixer between them, the
+  -- floor beyond the booth's edge
+  local DK = {{x = 23, y = 44}, {x = 105, y = 44}}
+  local DRX, DRY = 19, 11
+  local BY = 27                          -- the booth's front edge
+
+  local function oval(l, cx, cy, rx, ry)
+    if not (ry > 0.5) then return end
+    for dy = -math.floor(ry), math.floor(ry) do
+      local hw = rx * math.sqrt(math.max(0, 1 - (dy / ry) ^ 2))
+      if hw >= 0.5 then put(l, cx - hw, cy + dy, hw * 2, 1) end
+    end
+  end
+
+  local function deck(i, live, e, c, lo, mid, hi)
+    local D = DK[i]
+    local cx, cy = D.x, D.y
+    -- the plinth's corners, the platter's rim, the record, its label
+    put(1.5, cx - 22, cy - 15, 3, 1); put(1.5, cx + 20, cy - 15, 3, 1)
+    put(1.5, cx - 22, cy + 15, 3, 1); put(1.5, cx + 20, cy + 15, 3, 1)
+    K.ring(1 + live * (lo * 0.6 + K.env.kick * 1.2), cx, cy, DRX + 1.5, 20, 0, K.TAU, DRY / DRX)
+    K.ring(1, cx, cy, DRX - 4, 16, 0, K.TAU, DRY / DRX)
+    -- the sheen on the vinyl, standing still while it turns
+    for k = 0, 1 do
+      local a = 2.3 + k * math.pi
+      local x0, y0 = cx + math.cos(a) * 7, cy + math.sin(a) * 7 * DRY / DRX
+      local x1, y1 = cx + math.cos(a) * (DRX - 2), cy + math.sin(a) * (DRX - 2) * DRY / DRX
+      line(1.5 + mid * 2 + hi * 2 + e, x0, y0, x1, y1)
+    end
+    local rot = drot[i]
+    oval(2.5 + live * (mid * 2 + K.env.kick * 3 + scratch * 5), cx, cy, 5.5, 3.3)
+    -- chaos: the label's print ghosts round as the deck is pushed about
+    if c > 0.3 then
+      local ga = rot + math.sin(K.T * 5 + i) * c * 1.5
+      local gx, gy = math.cos(ga) * 9, math.sin(ga) * 9 * DRY / DRX
+      line(1 + c * 3 * live, cx - gx, cy - gy, cx + gx, cy + gy)
+    end
+    local ax, ay = math.cos(rot) * 5, math.sin(rot) * 5 * DRY / DRX
+    line(5 + live * 3, cx - ax, cy - ay, cx + ax, cy + ay)
+    put(9, cx, cy, 1, 1)
+    -- the tonearm, its needle sparked by the closed hats
+    local px, py = cx + (i == 1 and 17 or -17), cy - 12
+    local nx, ny = cx + (i == 1 and 9 or -9), cy - 5
+    K.ring(2.5, px, py, 2.5, 8)
+    line(3.5 + e, px, py, nx + (i == 1 and 2 or -2), ny - 2)
+    line(3.5 + e, nx + (i == 1 and 2 or -2), ny - 2, nx, ny)
+    if live > 0.3 then put(math.min(13, 3 + K.env.hat * 9 + hi * 3), nx, ny, 1, 1) end
+    -- the start lamp and the pitch fader
+    put(2 + live * 4, cx + (i == 1 and -20 or 18), cy + 12, 2, 1)
+    local fx = cx + (i == 1 and 21 or -22)
+    line(1.5, fx, cy - 6, fx, cy + 8)
+    put(3 + e * 2, fx - 1, cy + 1 + math.sin(K.T * 0.13 + i) * 2, 3, 2)
+  end
+
+  local function draw3(S)
+    local T, DT, e, c = K.T, K.DT, K.energy, K.chaos
+    local lo, hi, kl, mid, amp = A[K.LO], A[K.HI], K.kickless, A[K.MID], A[K.AMP]
+    local playing = K.playing and 1 or 0
+    -- the decks: the left one plays; over the phrase the right one is
+    -- dropped in and the crossfader walks across
+    local xf = K.ease((pp - 0.25) / 0.6)
+    local live2 = K.ease((pp - 0.2) * 4)
+    scratch = scratch * math.exp(-DT / 0.35)
+    for i = 1, 2 do
+      local to = i == 1 and (0.4 + 0.6 * playing) or live2 * (0.4 + 0.6 * playing)
+      dspin[i] = K.follow(dspin[i], to, 0.3, DT)
+      local w = dspin[i] * K.TAU / math.max(0.6, K.beat_sec * 4)
+      -- a ratchet scratches the live deck back and forth; chaos too
+      local sc = (i == (xf > 0.5 and 2 or 1)) and (scratch * 14 * math.sin(T * 30) + c * c * 6 * math.sin(T * 7.3 + i)) or 0
+      drot[i] = (drot[i] + K.DTS * (w + sc)) % (K.TAU * 64)
+    end
+    filt = filt * math.exp(-DT / 0.9)
+    lamp = lamp * math.exp(-DT / 0.3)
+
+    -- the floor beyond: a back wall washed by the lights, heads against
+    -- it, hands up on the claps
+    local wash = 0.8 + amp * 0.8 + e * 0.4 + K.bar_pulse * 0.8
+    for k = 0, 7 do
+      local x = (k * 18 + T * (3 + k % 3) + c * 20 * math.sin(T * 1.7 + k)) % 150 - 11
+      local w = 10 + 4 * math.sin(T * 0.4 + k)
+      put(wash * (0.6 + 0.4 * math.sin(T * 0.9 + k * 1.7)), x, 2 + (k % 3) * 2, w, 1)
+    end
+    local hb = 0
+    for i = 1, 14 do
+      local h = bhands[i]
+      bhands[i] = h * math.exp(-DT / 0.45)
+      if mid > 0.15 and K.hash(i, 33) < mid * 0.7 then
+        h = math.max(h, mid * (0.5 + 0.5 * math.sin(T * 2.2 + i)))
+      end
+      local show = K.hash(i, 34) < 0.55 + e * 0.45
+      if show then
+        local x = 4 + (i - 0.5) * 120 / 14 + math.sin(T * (0.5 + kl * 0.6) + i) * (1 + kl * 1.5)
+        local y = 19 + hb * (0.6 + 0.4 * K.hash(i, 35)) + K.hash(i, 36) * 2
+        local r = 2.6 + K.hash(i, 37) * 0.8
+        K.disc(1 + lo * 0.5, x, y, r)
+        put(1, x - r * 1.6, y + r * 0.6, r * 3.2, math.min(BY - y - r * 0.6, r * 2.2))
+        line(1.5 + wash * 0.6, x - r, y - r * 0.6, x + r, y - r * 0.6)  -- the rim light
+        if h > 0.15 then
+          local up = h ^ 0.5 * 8
+          line(2 + h * 4, x - r * 1.3, y, x - r * 1.6, y - up)
+          line(2 + h * 4, x + r * 1.3, y, x + r * 1.6, y - up)
+        end
+      end
+    end
+    -- the booth's edge and the gooseneck lamp the open hats flare
+    put(2 + K.bar_pulse * 2, 0, BY, 128, 3)
+    line(2.5, 48, BY, 52, BY - 6)
+    put(3 + lamp * 8, 50, BY - 8, 4, 2)
+    if lamp > 0.08 then
+      for k = 0, 3 do put(lamp * (4 - k), 47 - k, BY - 5 + k * 2, 10 + k * 2, 1) end
+    end
+
+    -- the decks
+    deck(1, 1, e, c, lo, mid, hi)
+    deck(2, live2, e, c, lo, mid, hi)
+
+    -- the mixer: four meters (level, lows, mids, highs) with peak holds,
+    -- the EQ knobs over them (a fill sweeps the filter; kickless the lows
+    -- are cut), the crossfader walking across over the phrase
+    local MX = 47
+    line(1.5, MX - 2, BY + 4, MX - 2, 63)
+    line(1.5, MX + 35, BY + 4, MX + 35, 63)
+    local band = {amp, lo * (1 - kl * 0.7), mid, hi}
+    for m = 1, 4 do
+      meter[m] = math.max(meter[m] * math.exp(-DT / 0.12), band[m])
+      if meter[m] > peakh[m] then peakh[m] = meter[m] else peakh[m] = peakh[m] - DT * 0.4 end
+      local x = MX + 2 + (m - 1) * 8
+      -- (solid columns: the track dim, the lit part bright, red at the top)
+      local mv = clamp(meter[m] + (c > 0.2 and math.sin(T * 9 + m * 2) * c * 0.25 or 0), 0, 1)
+      local top = 58 - mv * 22
+      if top > 36 then put(1, x, 36, 4, top - 36) end
+      if mv > 0.03 then
+        local yr = math.min(58, math.max(top, 41))
+        if yr < 58 then put(3.5 + mv * 2 + e, x, yr, 4, 58 - yr) end
+        if top < 41 then put(8, x, top, 4, 41 - top) end
+      end
+      local pk = 58 - clamp(peakh[m], 0, 1) * 22
+      put(4 + e * 2, x, pk - 1, 4, 1)
+      -- the EQ knob over the strip
+      local kv = m == 2 and (0.5 - kl * 0.45) or (m == 4 and 0.5 + filt * 0.45 or 0.5 + 0.05 * math.sin(T * 0.3 + m))
+      local kx, ky = x + 2, BY + 6
+      K.ring(1.5 + e * 0.5, kx, ky, 2.5, 8)
+      local a = math.pi * 0.75 + clamp(kv, 0, 1) * math.pi * 1.5
+      line(4 + e * 2, kx, ky, kx + math.cos(a) * 2.5, ky + math.sin(a) * 2.5)
+    end
+    line(1.5, MX + 3, 61, MX + 30, 61)
+    -- (a ratchet cuts it back and forth, chaos wobbles it)
+    local xk = clamp(xf + scratch * 0.4 * math.sin(T * 40) + c * c * 0.25 * math.sin(T * 3.3), 0, 1)
+    put(4 + e * 2 + scratch * 5, MX + 2 + xk * 26, 60, 3, 3)
+    -- the cue pads under the decks: percs and ratchets light them
+    for k = 1, 8 do
+      cuep[k] = cuep[k] * math.exp(-DT / 0.18)
+      local x = k <= 4 and (8 + (k - 1) * 8) or (90 + (k - 5) * 8)
+      put(1.2 + cuep[k] * 9, x, 61, 5, 2)
+    end
+    K.grain(function(u, v) return u * 128, 1 + v * 22 end, 2 + hi * 12 + e * 3, 2 + hi * 4)
+  end
+
   function M.draw(S)
     local DT = K.DT
     blind = blind * math.exp(-DT / 0.18)
@@ -474,7 +687,11 @@ return function(K)
     conv = conv * math.exp(-DT / 0.9)
     bob = K.follow(bob, K.duck * (1 - K.kickless), 0.05, DT)
     kup = K.follow(kup, math.max(K.env.kick, A[K.LO] * 0.5), 0.05, DT)
-    if K.view == 2 then draw2(S) else draw1(S) end
+    local pl = math.floor(K.num(S and S.phrase_len, 16))
+    if not (pl >= 1 and pl <= 256) then pl = 16 end
+    local pto = clamp((K.num(S and S.phrase_pos, 0) % pl + K.bar_ph) / pl, 0, 1)
+    pp = K.follow(pp, pto, 0.5, DT)
+    if K.view == 2 then draw2(S) elseif K.view == 3 then draw3(S) else draw1(S) end
   end
 
   M.init()

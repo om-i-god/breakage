@@ -2,6 +2,8 @@
 -- table lamp: rhythm buttons, voice lamps, a big tempo knob and a breathing grille.
 -- view 2: a 70s living room at night: a home organ with the rhythm box on top, a
 -- lava lamp whose blobs rise and split on the hits, and a TV test card glowing.
+-- view 3: inside the box: the diode matrix that holds the rhythms, its counter
+-- scanning the steps, and the eight voice circuits ringing on a little scope.
 --
 -- view 1: one of six rhythm buttons (bossa nova, rhumba, cha-cha, samba,
 -- beguine, slow rock) is lit and moves on every eight bars; each voice has a
@@ -22,6 +24,21 @@
 -- the TV roll and ghost, doubles the lamp and the keys and multiplies the
 -- blobs; energy heats the lamp; kickless slows the lava and lets the TV and
 -- the moon through the blinds light the room.
+-- in both the phrase moves on round the tempo knob's ticks (view 1) and
+-- warms the lava (view 2).
+-- view 3: every voice has a column of the matrix and every step of the bar
+-- a row; a hit lights the diode where its column crosses the step the
+-- counter is on and the matrix remembers the bar's pattern as it fades
+-- (longer with energy). each voice's line runs down to its circuit on the
+-- scope: the bass drum rings slow and low, the snare buzzes, the cymbal and
+-- maracas hiss, the clave pings; guiro scrapes run down the step buses, a
+-- fill sweeps them, the tempo pilot blinks the beat, the selector shows the
+-- rhythm button, a divider's lamps count the phrase, tambourines jingle
+-- down the power rail and the kick sags it. the lows ring the bass trace
+-- and the rail, the mids the step buses and the middle voices, the highs
+-- the cymbal traces and the solder glints, the level the board. chaos
+-- misfires diodes and cross-talks the scope; kickless the bass drum's
+-- column goes dark.
 return function(K)
   local M = {}
   local put, line, A, clamp = K.put, K.line, K.A, K.clamp
@@ -44,6 +61,10 @@ return function(K)
   local pedal, pedal_i, swell              -- bass pedals, swell grille
   local roll, rollv, rburst, snow, tvf     -- TV vertical roll, snow, flicker
   local lgs, sws                           -- lava kick glow and swell, eased
+  -- view 3
+  local mat                                -- the diode matrix: what each voice played on each step
+  local MC = 16                            -- its columns (steps of the bar)
+  local ghost3                             -- chaos: misfiring diodes {i, c, t0}
 
   function M.init()
     lamp, ltau = {}, {}
@@ -65,11 +86,38 @@ return function(K)
     pedal, pedal_i, swell = 0, 1, 0
     roll, rollv, rburst, snow, tvf = 0, 0, 0, 0, 0
     lgs, sws = 0, 0
+    mat, ghost3 = {}, {}
+    for i = 1, NL do
+      mat[i] = {}
+      for c = 0, MC - 1 do mat[i][c] = 0 end
+    end
   end
   M.clear = M.init
 
+  -- where we are in the phrase, 0..1
+  local function phrase_u(S)
+    if type(S) ~= "table" then return 0 end
+    local pl = max(1, floor(K.num(S.phrase_len, 16) or 16))
+    local u = ((K.num(S.phrase_pos, 0) or 0) % pl) / pl
+    if not (u >= 0 and u <= 1) then u = 0 end
+    return u
+  end
+
+  -- the step of the bar we are on, as a matrix column
+  local function col()
+    local c = floor(clamp(K.num(K.bar_ph, 0), 0, 0.999) * MC)
+    if not K.playing then c = floor(K.T * 4) % MC end
+    return c
+  end
+
   local function flash(i, v)
-    if i >= 1 and i <= NL then lamp[i] = max(lamp[i], clamp(v, 0, 1)) end
+    if i >= 1 and i <= NL then
+      v = clamp(v, 0, 1)
+      lamp[i] = max(lamp[i], v)
+      -- (view 3) the diode for this voice on this step lights and is remembered
+      local r = mat and mat[i]
+      if r then local c = col(); r[c] = max(r[c], v) end
+    end
   end
 
   local function press(keys, k, v)
@@ -298,6 +346,7 @@ return function(K)
   end
 
   local function draw1(S)
+    local pu1 = phrase_u(S)
     local T, e, c, kl = K.T, K.energy, K.chaos, K.kickless
     local lo, hi, mid = A[K.LO], A[K.HI], A[K.MID]
     local playing = K.playing
@@ -311,7 +360,7 @@ return function(K)
         for y = 1 + (x // 8) % 2 * 3, 12, 6 do put(1, x, y, 1, 2) end
       end
     end
-    local hw = 14 + e * 3 + lo * 2
+    local hw = 12 + e * 2 + lo
     for y = 0, 13 do
       local u = (y - 6) / 9
       local w = hw * sqrt(max(0, 1 - u * u))
@@ -402,7 +451,8 @@ return function(K)
     local ang = PI * 0.75 + u * PI * 1.5
     for k = 0, 10 do
       local a = PI * 0.75 + k / 10 * PI * 1.5
-      put(1.5 + (abs(a - ang) < 0.3 and 3 or 0), KX + cos(a) * 10, KY + sin(a) * 10, 1, 1)
+      -- (the ticks fill round as the phrase goes by)
+      put(1.5 + (abs(a - ang) < 0.3 and 3 or 0) + (k / 10 <= pu1 and 1.5 or 0), KX + cos(a) * 10, KY + sin(a) * 10, 1, 1)
     end
     K.disc(2 + lampg * 0.8, KX, KY, 7)
     K.ring(3 + lampg * 3, KX, KY, 7, 12, PI * 1.05, PI * 1.7)
@@ -543,6 +593,8 @@ return function(K)
   local function draw2(S)
     local T, DT, DTS, e, c, kl = K.T, K.DT, K.DTS, K.energy, K.chaos, K.kickless
     local lo, hi, mid, amp = A[K.LO], A[K.HI], A[K.MID], A[K.AMP]
+    -- the lava warms through the phrase
+    heat = max(heat, phrase_u(S) * 0.5)
     lava(DTS, e, c, kl)
     -- the room's lights rise with the level of the mix (amp)
     local glow = (0.45 + 0.35 * e + lgs * 0.4 + heat * 0.2 + lo * 0.25 + amp * 0.12) * (1 - 0.45 * kl)
@@ -552,7 +604,7 @@ return function(K)
     -- the wallpaper: dim 70s circles
     for i, p in ipairs(WALLP) do
       local near = max(0, 1 - abs(p[1] - LX) / 30) * glow + max(0, 1 - abs(p[1] - 20) / 26) * tvg * 0.5
-      K.ring(1 + near * 1.2, p[1], p[2], 3.5, 8)
+      K.ring(1 + near * 0.8, p[1], p[2], 3.5, 8)
     end
     -- the window behind the organ, the moon through vertical blinds
     -- (swaying a little in a draught)
@@ -601,17 +653,17 @@ return function(K)
     end
     tvrect(7 * tvg, ccx - 1, ccy - 1, 3, 3)
     -- snow and glints
-    local nsn = floor(snow * 10 + hi * 4)
+    local nsn = 2 + floor(snow * 10 + hi * 4)
     local fr = floor(T * 20)
     for k = 1, nsn do
-      put(4 + snow * 6, SX + floor(K.hash(fr * 13 + k, 51) * SW), SY + floor(K.hash(fr * 17 + k, 52) * SH), 1, 1)
+      put(2.5 + snow * 7, SX + floor(K.hash(fr * 13 + k, 51) * SW), SY + floor(K.hash(fr * 17 + k, 52) * SH), 1, 1)
     end
     -- the screen's glow on the wall above and the floor in front
     line(1 + tvg * 2, 6, 17, 36, 17)
 
     -- the organ
     local OX0, OX1 = 42, 98
-    line(3 + glow * 0.5, OX0, 30, OX1, 30)
+    line(2.5 + glow * 0.3, OX0, 30, OX1, 30)
     line(2, OX0, 30, OX0, 58); line(2, OX1, 30, OX1, 58)
     -- the rhythm box on the lid
     line(2.5, 60, 24, 84, 24); line(2, 60, 24, 60, 29); line(2, 84, 24, 84, 29)
@@ -627,7 +679,7 @@ return function(K)
     put(2 + pb * 8, 80, 27, 2, 1)
     -- drawbar tabs
     for k = 1, 12 do
-      put(1.2 + K.hash(k, 61) * 1.5 + tab[k] * 8 + hi * 3, 45 + (k - 1) * 4.4, 32, 2, 2)
+      put(1.2 + K.hash(k, 61) * 1.5 + tab[k] * 7 + hi * 1.5, 45 + (k - 1) * 4.4, 32, 2, 2)
     end
     -- the manuals: upper then lower, keys pressed down and lit
     local function manual(keys, y, ox, base)
@@ -635,7 +687,7 @@ return function(K)
         local x = 45 + (k - 1) * 3 + ox
         local rp = rip_at(x, 45, 96)
         local p = min(1, keys[k] + rp)
-        put(base + p * 6.5, x, y + (p > 0.4 and 1 or 0), 2, p > 0.4 and 2 or 3)
+        put(base + p * 5, x, y + (p > 0.4 and 1 or 0), 2, p > 0.4 and 2 or 3)
         if c > 0.35 then
           local gy = y - 2 - floor(c * 3 * (0.5 + 0.5 * sin(T * 2.3 + k)))
           if p > 0.2 or k % 3 == 0 then put((1 + p * 3) * c, x + floor(sin(T * 1.7 + k * 0.7) * c * 2), gy, 2, 1) end
@@ -644,8 +696,8 @@ return function(K)
       line(1.2, OX0 + 1, y + 3, OX1 - 1, y + 3)
     end
     -- the body of the mix (mid) plays across the manuals as a slow swell
-    manual(keyU, 35, 0, 1.8 + glow * 0.3 + mid * 0.7)
-    manual(keyL, 39, 1, 1.6 + glow * 0.3 + mid * 0.6)
+    manual(keyU, 35, 0, 1.6 + glow * 0.3 + mid * 0.5)
+    manual(keyL, 39, 1, 1.4 + glow * 0.3 + mid * 0.5)
     -- the body: grain, the swell grille breathing with the kick
     line(1.5, 50, 47, 50, 56); line(1.5, 91, 47, 91, 56)
     local sw = sws * (1 - kl * 0.7)
@@ -700,12 +752,153 @@ return function(K)
     K.grain(function(uu, vv)
       if uu < 0.5 then return LX - 4 + uu * 16, GT + vv * (GB - GT) end
       return SX + (uu - 0.5) * 2 * SW, SY + vv * SH
-    end, 4 + hi * 10 + snow * 20, 3 + hi * 3)
+    end, 10 + hi * 10 + snow * 20, 3 + hi * 3)
+  end
+
+  ---------------------------------------------------------------- view 3
+  -- inside the box: the diode matrix that holds the rhythms (a column per
+  -- voice, a row per step), its counter scanning down the steps, and the
+  -- eight voice circuits ringing on a little scope
+  local MY0, RH = 12, 3                    -- the matrix: top, step row height
+  local function vx(i) return 7 + (i - 1) * 10 end
+  local function sy(q) return MY0 + q * RH end
+  local SX0, SDX, SY0, SY1 = 92, 4.5, 12, 58   -- the scope: a trace per voice, top to bottom
+  -- each voice's ring: cycles down its trace, how fast it dies, noise
+  local RING = {{1.3, 0.5, 0}, {3.5, 0.35, 0.5}, {0, 0.6, 1}, {7, 0.2, 0},
+    {5, 0.5, 0.3}, {4.5, 0.3, 0}, {2.6, 0.4, 0}, {0, 0.3, 1}}
+
+  local function draw3(S)
+    local T, DT, e, c, kl = K.T, K.DT, K.energy, K.chaos, K.kickless
+    local lo, hi, mid, amp = A[K.LO], A[K.HI], A[K.MID], A[K.AMP]
+    local cur = col()
+    -- the matrix remembers about a bar, longer with energy
+    local keep = math.exp(-DT / (K.beat_sec * 4 * (0.8 + e * 1.2)))
+    for i = 1, NL do
+      local r = mat[i]
+      for q = 0, MC - 1 do r[q] = r[q] * keep end
+    end
+    -- chaos: diodes misfire here and there
+    if c > 0.2 and K.rnd() < (c - 0.2) * 6 * K.DTS then
+      if #ghost3 >= 8 then table.remove(ghost3, 1) end
+      ghost3[#ghost3 + 1] = {i = 1 + floor(K.rnd() * NL), c = floor(K.rnd() * MC), t0 = T}
+    end
+    local board = 0.6 + e * 0.5 + amp * 0.7
+
+    -- the board: copper pour, dim pins in a grid, warmer with the level
+    for y = 2, 62, 4 do
+      K.dashes(0.6 + board * 0.3, y, 1, 8, (y // 4) % 2 * 4, 0, 128)
+    end
+    -- the counter chip and the rhythm selector at the top
+    put(2 + mid * 1.5, 6, 3, 22, 6)
+    for p = 0, 6 do put(2.5, 7 + p * 3, 2, 1, 1); put(2.5, 7 + p * 3, 9, 1, 1) end
+    for i = 1, 6 do
+      local a = -PI * 0.9 + (i - 1) * PI * 0.36
+      put(1.5 + bl[i] * 9, 42 + cos(a) * 6, 6 + sin(a) * 4, 1, 2)
+    end
+    local ba = -PI * 0.9 + (btn - 1) * PI * 0.36
+    line(4 + e * 2, 42, 6, 42 + cos(ba) * 4, 6 + sin(ba) * 3)
+    K.ring(2 + lo, 42, 6, 2, 8)
+    -- the tempo oscillator's pilot, on the beat
+    local bp = K.playing and (1 - K.beat_ph) ^ 5 or 0.15 + 0.15 * sin(T * 2)
+    put(2 + bp * 9 + pilot * 3, 60, 3, 3, 4)
+    -- the phrase: a slow divider's lamps
+    local pu = phrase_u(S)
+    for q = 0, 7 do put(q < pu * 8 + 0.5 and (2.5 + e * 2) or 1, 70 + q * 3, 3, 1, 4) end
+
+    -- the step buses across: the one the counter is on is live; a fill
+    -- sweeps them; the guiro's scrape runs down them
+    local sweep = fillt > 0.02 and floor((1 - fillt) * 40) % MC or -1
+    local rp_q = -1
+    for _, r in ipairs(rips) do
+      local u = (T - r.t0) / 0.3
+      if u >= 0 and u < 1 then rp_q = floor((r.dir > 0 and u or 1 - u) * MC) end
+    end
+    for q = 0, MC - 1 do
+      local y = sy(q)
+      local on = (q == cur) and (1.5 + 2 * (1 - K.beat_ph)) or 0
+      local fl = (q == sweep or q == rp_q) and 3 or 0
+      local base = (q % 4 == 0) and 1 or 0
+      if on + fl > 0 then
+        K.dashes(1 + on + fl + mid * 0.5, y, 6, 10, 9, 3, 85)
+      elseif base > 0 then
+        K.dashes(1, y, 2, 10, 11, 3, 85)
+      end
+    end
+    -- the voice columns: each voice's line down the matrix to its circuit
+    for i = 1, NL do
+      local x = vx(i)
+      local dark = (i == 1) and (1 - kl * 0.8) or 1
+      line((1.2 + lamp[i] * 3 + mid * 0.5) * dark, x, MY0 - 2, x, sy(MC - 1) + 2)
+      -- the diodes: a dim mark at every crossing, lit where the voice played
+      for q = 0, MC - 1 do
+        local v = mat[i][q]
+        local y = sy(q)
+        if v > 0.06 then
+          local now = (q == cur) and lamp[i] or 0
+          put(min(12, 1.5 + v * 5 + now * 4), x + 1, y - 1, 3, 3)
+        else
+          put(1, x + 2, y, 1, 1)
+        end
+      end
+      -- its run out to the scope
+      local tx = SX0 + (i - 1) * SDX
+      line(1 + lamp[i] * 3 * dark, x + 4, sy(MC - 1) + 2 + (i % 2), tx, SY1 + 2)
+    end
+    -- the misfires
+    for k = #ghost3, 1, -1 do
+      local G = ghost3[k]
+      local age = T - G.t0
+      if age > 0.4 then table.remove(ghost3, k)
+      else put((1 - age / 0.4) * 7 * c, vx(G.i) + 1, sy(G.c) - 1, 3, 3) end
+    end
+
+    -- the scope: a trace per voice running down the screen, ringing out
+    line(2 + amp * 1.5, SX0 - 3, SY0 - 2, SX0 - 3, SY1 + 1)
+    line(2 + amp * 1.5, SX0 + 7 * SDX + 3, SY0 - 2, SX0 + 7 * SDX + 3, SY1 + 1)
+    for gy = SY0 + 6, SY1, 8 do put(1.3 + hi * 0.8, SX0 - 2, gy, 1, 1) end
+    for i = 1, NL do
+      local x0 = SX0 + (i - 1) * SDX
+      local dark = (i == 1) and (1 - kl * 0.8) or 1
+      local lv = lamp[i] * dark
+      local R = RING[i]
+      local band = (i == 1 and lo) or ((i == 3 or i == 8) and hi) or mid
+      local a = min(2, lv * 2 + band * 0.4 + (c > 0.4 and c * 0.4 or 0))
+      local px, py
+      for q = 0, 10 do
+        local u = q / 10
+        local y = SY0 + u * (SY1 - SY0)
+        local w
+        if R[3] >= 1 then
+          w = (K.hash(q + floor(T * 30) * 13 + i * 7, 31) - 0.5) * 2
+        else
+          w = sin(u * R[1] * K.TAU - T * 3 * (1 + i * 0.1))
+          if R[3] > 0 then w = w + (K.hash(q + floor(T * 25) * 11, i) - 0.5) * R[3] end
+        end
+        local x1 = x0 + w * a * math.exp(-u / R[2])
+        if px then line(1.2 + lv * 7 + band * 0.8, px, py, x1, y) end
+        px, py = x1, y
+      end
+    end
+
+    -- the power rail down the side: the kick sags it, the lows hum on it;
+    -- the electrolytics swell
+    local sag = cs * (1 - kl * 0.8)
+    line(1.5 + lo * 2 + sag * 3, 87, 4, 87, 62)
+    line(1.2 + amp, 125, 4, 125, 62)
+    for y = 16, 56, 13 do put(2 + sag * 4 + lo, 88, y, 2, 4) end
+    -- jingles run along the rail
+    if jingle > 0.05 then
+      for k = 0, 4 do put(jingle * 8, 87, (T * 60 + k * 13) % 58 + 4, 1, 2) end
+    end
+    -- solder glints in the air (hi)
+    K.grain(function(uu, vv) return uu * 128, vv * 64 end, 10 + hi * 14 + e * 4, 3 + hi * 4)
   end
 
   function M.draw(S)
     tick_state()
-    if K.view == 2 then draw2(S) else draw1(S) end
+    if K.view == 2 then draw2(S)
+    elseif K.view == 3 then draw3(S)
+    else draw1(S) end
   end
 
   M.init()

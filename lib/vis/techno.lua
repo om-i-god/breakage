@@ -1,5 +1,6 @@
 -- techno. view 1: a motorway at night in one-point perspective: gantries and sodium lamps rush at you, cats' eyes tick past on the 16ths.
 -- view 2: a city grid at night from high above: signals change in sequence with the steps, light trails stream down the avenues.
+-- view 3: the city from across the river: towers and their windows, a rail bridge with a train crossing on the beat, all of it doubled in the water.
 --
 -- view 1: we drive at one cat's eye per 16th; the kick surges the road
 -- forward and blooms the city glow on the horizon; rimshots flash the lane
@@ -19,10 +20,31 @@
 -- plane overhead; ratchets send a convoy. energy lights the windows and the
 -- traffic; chaos shears the grid along fault lines and cuts diagonal
 -- avenues through it; kickless, low cloud drifts over and the city dims.
+-- in both, the phrase builds: more lamps and windows come on toward its end.
+-- view 3: the train runs a carriage a beat and the kick surges it; break
+-- slices jolt its lights; the kick rings the river out from the bridge and
+-- pulses the bridge lamps; snares and claps run lift lights up the towers;
+-- closed hats twinkle windows, open hats swing searchlights over the sky;
+-- perc and ratchets light the rooftop strobes (a ratchet a run of them along
+-- the skyline); ticks blink the masts; a fill and the phrase light the
+-- windows. the lows swell the water, the mids warm the sky and the truss,
+-- the highs glint the river and the stars, the level the glow. energy
+-- lights the city and speeds the train, chaos shears the towers and
+-- shatters the reflections, kickless the train creeps and mist lies on the
+-- river.
 return function(K)
   local M = {}
   local put, line, A, clamp = K.put, K.line, K.A, K.clamp
   local floor, sin, cos, exp, max, min, abs = math.floor, math.sin, math.cos, math.exp, math.max, math.min, math.abs
+
+  -- where we are in the phrase, 0..1
+  local function phrase_u(S)
+    if type(S) ~= "table" then return 0 end
+    local pl = max(1, floor(K.num(S.phrase_len, 16) or 16))
+    local u = ((K.num(S.phrase_pos, 0) or 0) % pl) / pl
+    if not (u >= 0 and u <= 1) then u = 0 end
+    return u
+  end
 
   local TH8 = {0, 4, 2, 6, 1, 5, 3, 7}
   -- one dithered row at value v (levels, fractional part ordered-dithered)
@@ -67,10 +89,33 @@ return function(K)
 
   ---------------------------------------------------------------- view 2
   local AV, ST = 24, 16               -- avenue / street spacing, px
+  local pu2 = 0                       -- the phrase, for the windows
   local trails, waves, tops
   local ox, oy, planef, gpulse, gps, flip
   local MAXT = 14
   local los = 0
+
+  ---------------------------------------------------------------- view 3
+  local HZ, WL = 36, 41                -- the skyline's foot, the waterline
+  local DECK = 37                      -- the rail bridge's deck
+  local TOW = {}                       -- the towers: x0, w, top, has a mast
+  do
+    local x, i = 0, 0
+    while x < 128 do
+      i = i + 1
+      local w = 6 + math.floor(K.hash(i, 101) * 4) * 2
+      local tall = K.hash(i, 102)
+      local top = HZ - 8 - math.floor(tall ^ 1.5 * 26)
+      TOW[#TOW + 1] = {x0 = x, w = w, top = top, mast = K.hash(i, 103) > 0.7 and tall > 0.4, i = i}
+      x = x + w + 1 + math.floor(K.hash(i, 104) * 3)
+    end
+  end
+  -- the sky above the towers (the glow is drawn only there)
+  local TOWP = K.profile(function(x)
+    for _, t in ipairs(TOW) do if x >= t.x0 and x < t.x0 + t.w then return t.top end end
+    return HZ
+  end)
+  local tpos, lifts, beams, strobes, wrip, tbeac, twink, brakes3
 
   function M.init()
     drive, surge, camx, camx_to, cam = 0, 0, 0, 0, 0
@@ -81,6 +126,8 @@ return function(K)
     trails, waves, tops = {}, {}, {}
     ox, oy, planef, gpulse, gps, flip = 8, 4, 0, 0, 0, 0
     los = 0
+    tpos, lifts, beams, strobes, wrip, tbeac, twink, brakes3 = 0, {}, {}, {}, {}, {}, 0, 0
+    for k = 1, #TOW do tbeac[k] = 0 end
   end
   M.clear = M.init
 
@@ -115,6 +162,16 @@ return function(K)
     surge = surge + 2.8 * v
     bloom = max(bloom, 0.6 + 0.4 * v)
     gpulse = max(gpulse, 0.6 + 0.4 * v)
+    -- (view 3) the river takes the thump as a ripple out from the bridge
+    if #wrip >= 4 then table.remove(wrip, 1) end
+    wrip[#wrip + 1] = {t0 = K.T, v = v}
+  end
+
+  -- (view 3) a lift light runs up a tower
+  local function lift(v)
+    if #lifts >= 6 then table.remove(lifts, 1) end
+    local t = TOW[1 + math.floor(K.rnd() * #TOW)]
+    lifts[#lifts + 1] = {t = t, t0 = K.T, v = v, col = math.floor(K.rnd() * math.max(1, (t.w - 2) / 2))}
   end
 
   function M.snare(v)
@@ -123,11 +180,13 @@ return function(K)
     if #waves >= 5 then table.remove(waves, 1) end
     waves[#waves + 1] = {ci = floor(ox / AV) + 1 + floor(K.rnd() * 4), cj = floor(oy / ST) + 1 + floor(K.rnd() * 3),
       t0 = K.T, lv = 0.6 + 0.4 * v}
+    lift(v)
   end
   function M.clap(v)
     v = K.num(v, 1)
     brake = max(brake, 0.5 * v + 0.3)
     gpulse = max(gpulse, 0.3 * v)
+    lift(v * 0.8); lift(v * 0.7)
   end
 
   function M.rim(v)
@@ -139,6 +198,13 @@ return function(K)
   function M.hat(v, open)
     v = K.num(v, 1)
     hatf = max(hatf, 0.4 + 0.6 * v)
+    twink = max(twink, v)
+    if open then
+      -- (view 3) an open hat swings a searchlight across the sky
+      if #beams >= 3 then table.remove(beams, 1) end
+      beams[#beams + 1] = {x = 10 + K.rnd() * 108, a0 = -2.4 + K.rnd() * 0.8, t0 = K.T, v = v,
+        dir = K.rnd() < 0.5 and -1 or 1}
+    end
     if open then rand_trail(2, 7 + 4 * v, 40, 80)
     else rand_trail(1, 6 + 4 * v, 22 + 10 * v, 95 + K.chaos * 40) end
   end
@@ -154,6 +220,8 @@ return function(K)
   function M.perc(kind, v)
     v = K.num(v, 1)
     percf = max(percf, (kind == 4 or kind == 6 or kind == 3) and (0.5 + 0.5 * v) or 0.5 * v)
+    local tb = 1 + math.floor(K.rnd() * #TOW)
+    tbeac[tb] = max(tbeac[tb], 0.5 + 0.5 * v)
     if #tops >= 6 then table.remove(tops, 1) end
     tops[#tops + 1] = {gi = floor(ox / AV) + floor(K.rnd() * 6), gj = floor(oy / ST) + floor(K.rnd() * 5),
       t0 = K.T, lv = 0.5 + 0.5 * v}
@@ -173,6 +241,7 @@ return function(K)
       lane_t = K.NOW
     end
     rand_trail(1, 5, 12, 100, 0, floor(ox / AV) + floor(u * 5.99))
+    brakes3 = 1
   end
 
   function M.ratchet(n)
@@ -180,6 +249,11 @@ return function(K)
     if #bursts >= 4 then table.remove(bursts, 1) end
     bursts[#bursts + 1] = {t0 = K.T, n = n}
     ratf = 1
+    -- (view 3) a run of strobes along the rooftops
+    local s0 = 1 + math.floor(K.rnd() * #TOW)
+    for k = 0, n - 1 do
+      if #strobes < 16 then strobes[#strobes + 1] = {i = (s0 + k * 2 - 1) % #TOW + 1, at = K.T + k * 0.05} end
+    end
     local gi = floor(ox / AV) + floor(K.rnd() * 6)
     for k = 0, min(n, 8) - 1 do rand_trail(1, 8 - k * 0.5, 8, 110, k * 0.05, gi) end
   end
@@ -219,7 +293,7 @@ return function(K)
 
   local function gantry(z, e, c)
     local f = fog(z)
-    local near = clamp((z - 1.8) / 2, 0, 1)
+    local near = clamp((z - 2.4) / 3, 0, 1)
     local lv = (1.5 + 2.5 * f + e) * near
     for side = -1, 1, 2 do
       local x0, y0 = proj(side * 2.6, 0, z)
@@ -266,7 +340,7 @@ return function(K)
     local base = K.playing and (EYE / max(0.05, K.beat_sec / 4)) or 1.4
     base = base * (1 - 0.65 * kl)
     drive = drive + (base + surge) * DTS
-    local dc = clamp(K.follow(camx, camx_to, 0.6, DT) - camx, -0.7 * DT, 0.7 * DT)
+    local dc = clamp(K.follow(camx, camx_to, 0.6, DT) - camx, -0.4 * DT, 0.4 * DT)
     camx = camx + dc
     camx_to = camx_to * exp(-DT / 6)
     cam = camx + c * 0.22 * sin(T * 0.6) + 0.05 * sin(T * 0.37)
@@ -399,7 +473,8 @@ return function(K)
 
     -- the sodium lamps both sides; energy lights more of them, chaos doubles them
     local pl = drive % LAMP
-    local litfrac = 0.3 + 0.4 * e + 0.4 * A[K.AMP]
+    -- (more lamps come on as the phrase builds)
+    local litfrac = 0.3 + 0.4 * e + 0.4 * A[K.AMP] + 0.25 * phrase_u(S)
     for k = 0, 9 do
       local z = k * LAMP + LAMP - pl + 0.5
       if z > 0.95 and z < ZF then
@@ -481,7 +556,7 @@ return function(K)
     end
     line(1, wx, wy, rwx, rwy)
     -- lit windows on those walls, more with energy
-    local nw = floor((0.15 + e * 0.6 + A[K.AMP] * 0.6) * 4 * K.hash(gi + gj * 13, 62) + 0.5)
+    local nw = floor((0.15 + e * 0.6 + A[K.AMP] * 0.6 + pu2 * 0.5) * 4 * K.hash(gi + gj * 13, 62) + 0.5)
     for w = 1, nw do
       local u = 0.2 + 0.6 * K.hash(gi * 3 + w, gj * 7 + 1)
       local v = K.hash(gi * 5 + w, gj * 3 + 2)
@@ -495,6 +570,7 @@ return function(K)
   end
 
   local function draw2(S)
+    pu2 = phrase_u(S)
     local T, DT, DTS = K.T, K.DT, K.DTS
     local e, c, kl = K.energy, K.chaos, K.kickless
     local lo, hi = A[K.LO], A[K.HI]
@@ -666,6 +742,170 @@ return function(K)
     K.grain(function(u, v) return u * 128, v * 64 end, 3 + hi * 10 + e * 4, 2 + hi * 4)
   end
 
+  ---------------------------------------------------------------- view 3 drawing
+  -- the city from across the river: towers and their lit windows, a rail
+  -- bridge with a train crossing on the beat, all of it doubled in the water
+
+  local function draw3(S)
+    local T, DT, DTS = K.T, K.DT, K.DTS
+    local e, c, kl = K.energy, K.chaos, K.kickless
+    local lo, hi, mid, am = A[K.LO], A[K.HI], A[K.MID], A[K.AMP]
+    local pu = phrase_u(S)
+    local g = blooms
+    twink = twink * exp(-DT / 0.1)
+    brakes3 = brakes3 * exp(-DT / 0.5)
+    for k = 1, #TOW do tbeac[k] = tbeac[k] * exp(-DT / 0.25) end
+    for k = #strobes, 1, -1 do
+      if K.T >= strobes[k].at then tbeac[strobes[k].i] = 1; table.remove(strobes, k) end
+    end
+
+    -- the sky: the city's glow over the skyline, stars above it
+    for i = 0, 13 do
+      local x, y = floor(K.hash(i, 111) * 127), 1 + floor(K.hash(i, 112) * 14)
+      local tw = 0.5 + 0.5 * sin(T * (0.5 + K.hash(i, 113)) + i * 2.3)
+      put((1 + tw * (0.6 + hi * 2.5)) * (1 - kl * 0.7), x, y, 1, 1)
+    end
+    K.gradient(10, HZ - 1, function(y)
+      local u = (y - 10) / (HZ - 10)
+      return u * u * u * (0.4 + am * 0.6 + e * 0.4 + g * 0.8 + mid * 0.6) + kl * 0.3
+    end, TOWP)
+
+    -- the searchlights (open hats), swinging over the sky
+    for k = #beams, 1, -1 do
+      local B = beams[k]
+      local age = T - B.t0
+      if age > 2.2 then table.remove(beams, k)
+      else
+        local a = B.a0 + B.dir * age * 0.45 + (c > 0.4 and 0.3 * c * sin(T * 3 + k) or 0)
+        local f = min(1, age / 0.15) * min(1, (2.2 - age) / 0.6)
+        local l = (1.5 + 3 * B.v + hi * 2) * f
+        local x1, y1 = B.x + cos(a) * 70, HZ + sin(a) * 70
+        line(l, B.x, HZ - 2, x1, y1)
+        line(l * 0.5, B.x + 1, HZ - 2, x1 + 6, y1 + 2)
+      end
+    end
+
+    -- the towers: their outlines, lit windows (more as the phrase fills
+    -- up, with energy and the level), twinkling with the hats
+    local frac = min(0.6, 0.12 + 0.25 * e + 0.15 * am + 0.2 * pu + fillf * 0.2)
+    local shear = c > 0.3 and (c - 0.3) * 3 or 0
+    for k, t in ipairs(TOW) do
+      local dx = shear > 0 and floor(shear * sin(k * 2.1 + T * 0.4) + 0.5) or 0
+      local x0, x1 = t.x0 + dx, t.x0 + t.w - 1 + dx
+      local ol = 1.5 + e * 0.5 + g * 0.6 + lo * 0.6
+      line(ol * 0.7, x0, t.top, x1, t.top)
+      line(ol * 0.8, x0, t.top, x0, HZ)
+      line(ol * 0.8, x1, t.top, x1, HZ)
+      if t.mast then
+        line(1.5, (x0 + x1) / 2, t.top - 6, (x0 + x1) / 2, t.top)
+        put(min(12, 2 + tbeac[k] * 9 + beacon * 4 + 1.5 * (0.5 + 0.5 * sin(T * 1.3 + k))), (x0 + x1) / 2 - 1, t.top - 7, 3, 1)
+      elseif tbeac[k] > 0.05 then
+        put(min(12, 2 + tbeac[k] * 9), x0 + 1, t.top - 1, x1 - x0 - 1, 1)
+      end
+      local nc = floor((t.w - 2) / 2)
+      for r = 0, floor((HZ - t.top - 3) / 3) do
+        local y = t.top + 2 + r * 3
+        for q = 0, nc - 1 do
+          local h = K.hash(t.i * 61 + q * 7 + r * 131, 121)
+          if h < frac then
+            local l = 1.8 + K.hash(t.i + q + r * 17, 122) * 2 + e * 0.6
+            if K.hash(t.i * 3 + q + r * 5 + floor(T * 6), 123) < twink * 0.25 then l = l + 4 end
+            put(l, x0 + 1 + q * 2, y, 1, 2)
+          end
+        end
+      end
+    end
+    -- the lift lights running up (snare, clap)
+    for k = #lifts, 1, -1 do
+      local L = lifts[k]
+      local u = (T - L.t0) / 0.5
+      if u >= 1 then table.remove(lifts, k)
+      else
+        local t = L.t
+        local x = t.x0 + 1 + L.col * 2
+        local y = HZ - 2 - u * (HZ - t.top - 3)
+        put(min(12, (5 + 7 * L.v) * (1 - u * 0.5)), x, y - 1, 1, 2)
+        line(2 + 3 * L.v * (1 - u), x, HZ - 1, x, y)
+      end
+    end
+
+    -- the rail bridge: deck, truss, its lamps pulsing with the kick
+    local bl = 1.3 + e * 0.3 + g * 0.6 + lo * 0.4
+    line(bl, 0, DECK, 127, DECK)
+    line(1 + bl * 0.3, 0, DECK - 4, 127, DECK - 4)
+    local tsh = floor(T * 2) % 2
+    for x = -8, 127, 8 do
+      line(1 + mid * 0.4, x, DECK, x + 4, DECK - 4)
+      line(1 + mid * 0.4, x + 4, DECK - 4, x + 8, DECK)
+    end
+    for _, px in ipairs({22, 64, 106}) do line(2 + e, px, DECK, px, WL) end
+    for x = 8, 127, 16 do
+      put(min(11, 2.5 + g * 7 + lo * 2 + (1 - kl) * 1), x, DECK - 6, 1, 2)
+    end
+    -- the train: one carriage a beat, the kick surging it, a break slice
+    -- jolting its lights; kickless it creeps
+    local sp = (K.playing and 16 / max(0.1, K.beat_sec) or 22) * (1 - 0.7 * kl) * (1 - brakes3 * 0.4)
+    tpos = tpos + (sp + surge * 8) * DTS
+    local head = (tpos % 300) - 100
+    for car = 0, 4 do
+      local x = head - car * 17
+      if x > -16 and x < 130 then
+        line(2 + e * 0.5 + g, x, DECK - 4, x + 14, DECK - 4)
+        put(1, x, DECK - 3, 15, 3)
+        for w = 0, 4 do
+          local h = K.hash(car * 5 + w, 131)
+          local fl = brakes3 > 0.2 and K.hash(car + w + floor(T * 12), 132) < brakes3 * 0.5 and 0 or 1
+          put((2.5 + h + e + hi) * fl, x + 1 + w * 3, DECK - 2, 2, 1)
+        end
+      end
+    end
+    put(min(12, 6 + e * 3 + g * 3), head + 15, DECK - 2, 1, 1)
+
+    -- the river: every lit thing above drawn again, broken by the water;
+    -- the kick runs ripples out, the lows swell it, chaos shatters it
+    local wob = 0.5 + lo * 1.6 + c * 2
+    for y = WL + 1, 63, 2 do
+      local d = y - WL
+      local rp = 0
+      for _, R in ipairs(wrip) do
+        local u = (T - R.t0) / 1.2
+        if u < 1 then
+          local front = u * 26
+          if abs(d - front) < 3 then rp = rp + R.v * (1 - u) * 1.2 end
+        end
+      end
+      local ox_ = floor(wob * sin((y // 4) * 1.9 + T * 2.3) + rp * sin((y // 4) * 2.7 + T * 5) + 0.5)
+      if c > 0.4 then ox_ = ox_ + floor((K.hash(y // 4 + floor(T * 3) * 3, 141) - 0.5) * (c - 0.4) * 12 + 0.5) end
+      -- the bridge lamps: long streaks
+      if d < 18 then
+        for x = 8, 127, 16 do put(max(0, (1.5 + g * 2 + lo * 1.5) * (1 - d / 18)), x + ox_, y, 1, 2) end
+      end
+      -- the towers, by their lit columns, shortening into the water
+      for k, t in ipairs(TOW) do
+        local hgt = (HZ - t.top) * 0.75
+        if d < hgt then
+          local nc = floor((t.w - 2) / 2)
+          for q = 0, nc - 1 do
+            -- a column with any light in it streaks the water
+            if K.hash(t.i * 13 + q, 124) < frac * 1.3 then
+              put((1.2 + K.hash(t.i + q, 122) * 1.5 + e * 0.6 + g) * (1 - d / (hgt + 4)), t.x0 + 1 + q * 2 + ox_, y, 1, 2)
+            end
+          end
+        end
+      end
+      -- the river surface glints in the air (hi)
+      if (y // 2) % 4 == 1 then
+        K.dashes(1 + hi * 1.5 + am * 0.5, y + 1, 2, 11 + (y % 5), T * (6 + y % 4) + y * 7, 0, 128)
+      end
+    end
+    for k = #wrip, 1, -1 do if T - wrip[k].t0 > 1.2 then table.remove(wrip, k) end end
+    -- the waterline
+    line(1.2 + g + lo * 0.5, 0, WL, 127, WL)
+    -- kickless: mist lies on the river
+    if kl > 0.05 then K.haze(0, WL - 6, 128, 63, 0.3 * kl, 1, T * 6) end
+    K.grain(function(u, v) return u * 128, WL + v * 22 end, 10 + hi * 10 + e * 4, 2 + hi * 4)
+  end
+
   function M.draw(S)
     local DT = K.DT
     surge = surge * exp(-DT / 0.22)
@@ -685,7 +925,9 @@ return function(K)
     flip = flip * exp(-DT / 0.3)
     for b = #bursts, 1, -1 do if K.T - bursts[b].t0 > 0.9 then table.remove(bursts, b) end end
     for w = #waves, 1, -1 do if K.T - waves[w].t0 > 1.6 then table.remove(waves, w) end end
-    if K.view == 2 then draw2(S) else draw1(S) end
+    if K.view == 2 then draw2(S)
+    elseif K.view == 3 then draw3(S)
+    else draw1(S) end
   end
 
   M.init()

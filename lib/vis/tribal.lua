@@ -2,29 +2,57 @@
 -- two seated drummers in the foreground and a log drum at our feet.
 -- view 2: a stone circle on a hill under a huge starfield and a low moon; each
 -- stone holds a voice and lights from within.
+-- view 3: the rock face of a cave over the same fire: the dancers' shadows
+-- thrown huge across it, ochre glyphs painted on it, the night through the
+-- cave mouth up in the corner.
 --
 -- view 1: the kick flares the fire, throws a burst of sparks and makes the
 -- dancers hop; snares and claps spray sparks and the dancers clap overhead;
 -- toms, congas and bongos make the left drummer strike, the talking drum the
 -- right one (its waist squeezes with the bend); log hits light the slit drum
--- in front of us; tambourine and shaker glint in the dancers' hands; ticks pop
--- embers; break slices make one dancer stamp; ratchets throw spark chains and
--- a fill rolls both drummers and roars the fire. the tree line flickers in the
--- firelight. energy grows the fire, the glow and the ring of dancers; chaos
--- swirls the sparks and scatters the dancers into ghosts; kickless stretches
--- let the fire die to embers, the dancers slow, and the stars come out.
+-- in front of us; tambourine and shaker glint in the dancers' hands; closed
+-- hats pop embers round the logs and open hats send a column of heat shimmer
+-- up off the flames; ticks pop embers; break slices make one dancer stamp;
+-- ratchets throw spark chains and a fill rolls both drummers, roars the fire
+-- and whirls the ring of dancers. the firelight throws a glow into the sky
+-- that the trees stand dark against, and through the phrase torches round the
+-- clearing's edge are lit one by one while the fire builds. energy grows the
+-- fire, the glow and the ring of dancers; chaos swirls the sparks and
+-- scatters the dancers into ghosts; kickless stretches let the fire die to
+-- embers, the dancers slow, the stars come out and fireflies wander from
+-- the trees.
 -- view 2: the kick sends a ring of light out across the grass from the circle
 -- (stones flicker as it passes); each voice lights its own stone from within,
 -- and the talking drum's bend makes its stone's glow rise and fall; hats
--- twinkle the stars, a fill raises a pillar of light from the altar, ratchets
--- chase round the stones. energy lights the milky way and warms the stones,
--- chaos jitters and doubles the rings and ghosts the stones, and kickless
+-- twinkle the stars and an open hat flares one bright star; a fill raises a
+-- pillar of light from the altar, ratchets chase round the stones. a faint
+-- glow walks round the stones with the bar, and through the phrase a line of
+-- torch-bearers climbs the path up the hill, reaching the circle as the
+-- phrase turns. energy lights the milky way and warms the stones, chaos
+-- jitters and doubles the rings and ghosts the stones, and kickless
 -- stretches brighten the moon and let mist creep over the hill.
--- the live bands: view 1: amp feeds the firelight, lo the fire's size and the
--- glow pool, mid lights the dancers, drummers and trunks, hi shimmers the
--- flame tips, the grass and the stars. view 2: amp brightens the moon, lo
--- heaves a pool of light out from the altar, mid warms the stones, hi makes
--- the stars and the milky way sparkle.
+-- view 3: the kick flares the light up the wall and makes the shadows jump;
+-- the snare and claps raise the shadows' arms and light the painted hands;
+-- each voice wakes its own glyph: the kick the sun, toms, congas, bongos and
+-- rims the running antelope, the talking drum the spiral (it unwinds with
+-- the bend), log hits the serpent, tambourine and shaker the row of dots,
+-- vox and the other perc the hunter, who looses his arrow; closed hats catch
+-- a fleck of mica in the rock and open hats a star of it plus a heat
+-- shimmer over the flames; ratchets chase from glyph to glyph, a fill wakes
+-- them all and whirls the shadows. the light sways with the bar, and through
+-- the phrase the glyphs wake one by one as the story is told. energy brings
+-- more dancers and a wider light, chaos staggers the light and throws a
+-- second set of shadows from a flickering second fire and stirs the soot
+-- on the roof, kickless stretches shrink the fire and the shadows and let
+-- the moonlight in at the cave mouth.
+-- the live bands: view 1: amp feeds the firelight and the sky glow, lo the
+-- fire's size and the glow pool, mid lights the dancers, drummers, trunks
+-- and torches, hi shimmers the flame tips, the grass and the stars. view 2:
+-- amp brightens the moon, lo heaves a pool of light out from the altar, mid
+-- warms the stones and the path, hi makes the stars, the milky way and the
+-- torches sparkle. view 3: amp feeds the light and the cave mouth, lo swells
+-- the light and the shadows, mid warms the paint and the cracks, hi
+-- twinkles the mica and the stars and stirs the soot.
 return function(K)
   local M = {}
   local put, line, A, clamp = K.put, K.line, K.A, K.clamp
@@ -50,6 +78,13 @@ return function(K)
   local gl = {}                       -- the stones' glow, eased
   local shoot                         -- a shooting star {t0, x, y}
   local pv = 0                        -- the pillar, eased
+  local hopen, whirl, dph             -- open-hat heat shimmer, fill whirl, dance phase
+  local ostar, ostar_i                -- view 2: an open hat flares one star
+  -- view 3: the painted glyphs' glow (1 sun 2 hands 3 antelope 4 spiral
+  -- 5 serpent 6 dots 7 hunter), mica glints in the rock
+  local NG = 7
+  local gg = {}
+  local mica, mica_i, mopen
 
   -- masks: rows of [x0, x1) a front dancer covers (fire and glow skip them)
   local mk, mn = {}, {}
@@ -68,6 +103,10 @@ return function(K)
     rings, pillar, chase, twk = {}, 0, nil, 0
     pv = 0
     shoot = nil
+    hopen, whirl, dph = 0, 0, 0
+    ostar, ostar_i = 0, 1
+    for i = 1, NG do gg[i] = 0 end
+    mica, mica_i, mopen = 0, 1, 0
   end
   M.clear = M.init
 
@@ -109,6 +148,13 @@ return function(K)
   local function burst(n, v, spread, up)
     for k = 1, n do spark(FX + (K.rnd() - 0.5) * 8, FY - 4 - K.rnd() * 6, v, spread, up) end
   end
+  local function glyph(i, v) gg[i] = max(gg[i], clamp(v, 0, 1)) end
+  -- where we are in the phrase, 0..1 (smooth through the bar)
+  local function phrase(S)
+    local L = max(1, floor(K.num(S and S.phrase_len, 16)))
+    local p = floor(K.num(S and S.phrase_pos, 0)) % L
+    return clamp((p + K.bar_ph) / L, 0, 1)
+  end
 
   ---------------------------------------------------------------- events
   function M.kick(v)
@@ -118,23 +164,27 @@ return function(K)
     rings[#rings + 1] = {t0 = K.T, v = v}
     if #rings > 4 then table.remove(rings, 1) end
     lit[1] = max(lit[1], 0.5 + 0.5 * v)
+    glyph(1, 0.5 + 0.5 * v)
   end
   function M.snare(v, n)
     v = K.num(v, 1)
     clapv = math.max(clapv, v)
     burst(3, v * 0.8, 30, 10)
     lit[2] = max(lit[2], 0.4 + 0.6 * v)
+    glyph(2, 0.4 + 0.6 * v)
   end
   function M.clap(v)
     v = K.num(v, 1)
     clapv = math.max(clapv, v * 0.8)
     burst(2, v * 0.6, 26, 9)
     lit[2] = max(lit[2], 0.3 + 0.5 * v)
+    glyph(2, 0.3 + 0.5 * v)
   end
   function M.rim(v)
     v = K.num(v, 1)
     dh[1] = max(dh[1], 0.5 * v); dhand[1] = 3 - dhand[1]
     lit[8] = max(lit[8], 0.3 + 0.5 * v)
+    glyph(3, 0.3 * v)
   end
   function M.hat(v, open)
     v = K.num(v, 1)
@@ -142,6 +192,12 @@ return function(K)
     if open or K.rnd() < 0.35 then spark(FX + (K.rnd() - 0.5) * 6, FY - 8, 0.3, 10, 12) end
     lit[3] = max(lit[3], (open and 0.6 or 0.3) * (0.5 + v))
     twk = max(twk, open and 1 or 0.5)
+    if open then
+      hopen = max(hopen, 0.5 + 0.5 * v)
+      ostar, ostar_i = max(ostar, 0.6 + 0.4 * v), 1 + floor(K.rnd() * 12)
+      mopen = max(mopen, 0.6 + 0.4 * v)
+    end
+    mica, mica_i = max(mica, 0.4 + 0.6 * v), 1 + floor(K.rnd() * 14)
   end
   function M.ride(v) M.hat(v, true) end
   function M.shaker(v)
@@ -149,11 +205,13 @@ return function(K)
     shake = max(shake, 0.4 + 0.5 * v)
     lit[8] = max(lit[8], 0.2 + 0.4 * v)
     twk = max(twk, 0.4)
+    glyph(6, 0.3 + 0.4 * v)
   end
   function M.tom(v, hz)
     v, hz = K.num(v, 1), K.num(hz, 120)
     dh[1] = max(dh[1], 0.6 + 0.4 * v); dhand[1] = 3 - dhand[1]
     lit[4] = max(lit[4], 0.4 + 0.6 * v)
+    glyph(3, 0.4 + 0.6 * v)
     if hz < 140 then flare = max(flare, 0.3 * v) end
   end
   function M.perc(kind, v)
@@ -163,34 +221,42 @@ return function(K)
       bend, bend_t = v, 0
       rise[5] = 0
       lit[5] = max(lit[5], 0.4 + 0.6 * v)
+      glyph(4, 0.4 + 0.6 * v)
     elseif kind == 1 or kind == 2 then
       dh[1] = max(dh[1], 0.4 + 0.5 * v); dhand[1] = 3 - dhand[1]
       lit[6] = max(lit[6], 0.3 + 0.6 * v)
+      glyph(3, 0.3 + 0.5 * v)
     elseif kind == 7 then
       logv = max(logv, 0.5 + 0.5 * v)
       spark(FX + (K.rnd() - 0.5) * 30, 58, v * 0.5, 8, 8)
       lit[7] = max(lit[7], 0.4 + 0.6 * v)
+      glyph(5, 0.4 + 0.6 * v)
     elseif kind == 17 then
       M.tom(v, 90)
     elseif kind == 16 then
       -- a voice: the dancers call back, arms up
       clapv = max(clapv, 0.7 * v)
       lit[9] = max(lit[9], 0.4 + 0.5 * v)
+      glyph(7, 0.5 + 0.5 * v)
     elseif kind == 10 then
       tamb, tamb_i = max(tamb, v), floor(K.rnd() * 8) + 1
       lit[8] = max(lit[8], 0.4 + 0.5 * v)
+      glyph(6, 0.4 + 0.6 * v)
     else
       spark(FX + (K.rnd() - 0.5) * 10, FY - 6, v * 0.6, 16, 12)
       lit[9] = max(lit[9], 0.3 + 0.6 * v)
+      glyph(7, 0.3 + 0.4 * v)
     end
   end
   function M.tick(kind)
     spark(FX + (K.rnd() - 0.5) * 12, FY - 2, 0.35, 20, 9)
     lit[9] = max(lit[9], 0.25)
+    mica, mica_i = max(mica, 0.3), 1 + floor(K.rnd() * 14)
   end
   function M.brk(s, n)
     s, n = K.num(s, 1), max(1, K.num(n, 8))
     stamp, stamp_i = 1, floor(s) % 8 + 1
+    glyph(7, 0.35)
     lit[(floor(s) % NST) + 1] = max(lit[(floor(s) % NST) + 1], 0.35)
   end
   function M.ratchet(n)
@@ -207,7 +273,9 @@ return function(K)
     roll = 1
     flare = 1
     pillar = 1
+    whirl = 1
     burst(6, 1, 20, 22)
+    for i = 1, NG do glyph(i, 0.6) end
   end
 
   ---------------------------------------------------------------- view 1
@@ -299,13 +367,39 @@ return function(K)
     end
   end
 
+  -- sparks: rising, drifting, swirling with chaos (dy shifts them on screen)
+  local function run_sparks(dy)
+    local c = K.chaos
+    for i = #sparks, 1, -1 do
+      local p = sparks[i]
+      local u = (K.T - p.t0) / p.life
+      if u >= 1 or u < 0 then table.remove(sparks, i)
+      else
+        local dts = K.DTS
+        p.vy = p.vy - 4 * dts
+        p.vx = p.vx * math.exp(-dts * 0.8) + sin(K.T * 3 + p.sd) * 6 * dts
+        if c > 0.1 then
+          local rx, ry = p.x - FX, p.y - (FY - 14)
+          p.vx = p.vx - ry * c * 2.2 * dts
+          p.vy = p.vy + rx * c * 1.2 * dts
+        end
+        local ox, oy = p.x, p.y
+        p.x, p.y = p.x + p.vx * dts, p.y + p.vy * dts
+        local lv = p.lv * (1 - u)
+        put(lv, p.x, p.y + dy, 1, 1)
+        if abs(p.vy) + abs(p.vx) > 12 then line(lv * 0.4, ox, oy + 1 + dy, p.x, p.y + 1 + dy) end
+      end
+    end
+  end
+
   local function draw1(S)
     local T, DT, e, c, kl = K.T, K.DT, K.energy, K.chaos, K.kickless
     local lo, hi, mid = A[K.LO], A[K.HI], A[K.MID]
     for y = 0, 63 do mn[y] = 0 end
 
     -- the fire's size: energy and flare grow it, kickless lets it die
-    local tgt = (0.3 + 0.45 * e + lo * 0.35 + flare * 0.7 + roll * 0.4) * (1 - 0.82 * kl)
+    local ph = phrase(S)
+    local tgt = (0.3 + 0.45 * e + lo * 0.35 + flare * 0.7 + roll * 0.4 + ph * 0.12) * (1 - 0.82 * kl)
     fs = K.follow(fs, tgt, tgt > fs and 0.05 or 0.3, DT)
     local fl = 0.75 + 0.25 * sin(T * 11.3) * sin(T * 7.1 + 1)       -- flicker
     local light = clamp(fs * fl * 1.3 + A[K.AMP] * 0.25, 0.05, 1.4)
@@ -319,6 +413,13 @@ return function(K)
         put(0.8 + tw * (1 + kl * 2.5 + hi * 2 + twk * 2) * (y < 10 and 1 or 0.7), x, y, 1, 1)
       end
     end
+    -- the firelight thrown up into the sky over the clearing: the trees
+    -- stand dark against it
+    local glow = clamp(light * 0.35 + A[K.AMP] * 0.15 + flare * 0.15 + ph * 0.1, 0, 0.75)
+    local gw = 22 + floor(light * 8)
+    K.gradient(12, HZ - 1, function(y)
+      return glow * ((y - 12) / (HZ - 13)) ^ 1.5 * (0.85 + 0.15 * sin(T * 2.3 + y * 0.3))
+    end, TREE, max(0, FX - gw), min(128, FX + gw))
     -- smoke: soft puffs rising and leaning out of the firelight
     local ftop = FY - 4 - fs * 18
     for k = 0, 3 do
@@ -358,17 +459,39 @@ return function(K)
       local near = 1 - min(1, abs(x + 8 - FX) / 70)
       line(0.8 + light * near * 1.5, x, HZ, x + 12, HZ)
     end
+    -- torches staked round the clearing's edge, lit one by one through the
+    -- phrase (all eight by the turn of it, then they go out and start again)
+    for k = 0, 7 do
+      local tx = 7 + k * 16 + (k >= 4 and 2 or 0)
+      local ty = HZ + 1 + (k % 2)
+      line(1.2 + light * 0.5, tx, ty, tx, ty - 4)
+      local on = clamp((ph * 8 - k) * 2, 0, 1)
+      if on > 0 then
+        local f = 0.6 + 0.4 * sin(T * (9 + k) + k * 1.7)
+        put(on * (3 + f * 3 + hi * 2 + K.bar_pulse * 2), tx - (f > 0.8 and 1 or 0), ty - 6, 1 + (f > 0.8 and 1 or 0), 2)
+        put(on * (1 + mid), tx - 1, ty - 4, 3, 1)
+      end
+    end
+    -- kickless: fireflies wander out of the trees as the fire sinks
+    if kl > 0.05 then
+      for k = 0, 6 do
+        local fx = (K.hash(k, 91) * 128 + T * (3 + k) * (k % 2 == 0 and 1 or -1)) % 128
+        local fy = HZ - 6 + sin(T * (0.7 + k * 0.13) + k * 2) * 6 + K.hash(k, 92) * 12
+        local bl = 0.5 + 0.5 * sin(T * (1.6 + K.hash(k, 93)) + k * 3)
+        put(kl * bl * bl * (6 + hi * 3), fx, fy, 1, 1)
+      end
+    end
 
     -- the dancers: in front (cutouts, masking fire and glow) and behind
     local n = 5 + floor(e * 3 + 0.5)
-    local om = (0.22 + 0.25 * e) * (1 - 0.65 * kl)
+    local rw = 44 * (0.94 + 0.1 * ph)
     local hop = K.env.kick * 2.2 + stamp * 0
     local front = {}
     local back = {}
     for i = 1, n do
-      local th = (i - 1) * TAU / n + T * om + c * 0.7 * sin(T * 1.9 + i * 2.3)
+      local th = (i - 1) * TAU / n + dph + c * 0.7 * sin(T * 1.9 + i * 2.3)
       local r = 1 + c * ((K.hash(i, 31) - 0.5) * 0.7 + 0.25 * sin(T * 1.3 + i))
-      local x = FX + cos(th) * 44 * r
+      local x = FX + cos(th) * rw * r
       local yb = FY + 2 + sin(th) * 8 * r
       local s = 0.78 + 0.22 * sin(th)
       local step = sin(T * 5 + i * 1.7) * (1 - 0.5 * kl)
@@ -456,27 +579,24 @@ return function(K)
       end
     end
 
-    -- sparks: rising, drifting, swirling with chaos
-    for i = #sparks, 1, -1 do
-      local p = sparks[i]
-      local u = (K.T - p.t0) / p.life
-      if u >= 1 or u < 0 then table.remove(sparks, i)
-      else
-        local dts = K.DTS
-        p.vy = p.vy - 4 * dts
-        p.vx = p.vx * math.exp(-dts * 0.8) + sin(K.T * 3 + p.sd) * 6 * dts
-        if c > 0.1 then
-          local rx, ry = p.x - FX, p.y - (FY - 14)
-          p.vx = p.vx - ry * c * 2.2 * dts
-          p.vy = p.vy + rx * c * 1.2 * dts
-        end
-        local ox, oy = p.x, p.y
-        p.x, p.y = p.x + p.vx * dts, p.y + p.vy * dts
-        local lv = p.lv * (1 - u)
-        put(lv, p.x, p.y, 1, 1)
-        if abs(p.vy) + abs(p.vx) > 12 then line(lv * 0.4, ox, oy + 1, p.x, p.y + 1) end
+    -- open hats: a column of heat shimmer wavering over the flames
+    if hopen > 0.05 then
+      local top = FY - 4 - fs * 19
+      for k = 0, 5 do
+        local y = top - 2 - k * 3
+        local ox = sin(T * 13 + k * 1.9) * (1 + k * 0.5) + c * sin(T * 21 + k) * 3
+        local w = 3 + k
+        put(hopen * (4 - k * 0.5) + hi, FX + ox - w / 2, y, w, 1)
       end
     end
+    -- closed hats: little ember pops round the logs
+    if shake > 0.1 then
+      for k = 0, 2 do
+        put(shake * 6, FX - 10 + K.hash(floor(T * 8) + k, 95) * 20, FY + 1 + k % 2, 1, 1)
+      end
+    end
+
+    run_sparks(0)
 
     -- the front dancers' hands: tambourine jingles and shaker glints
     local ti = tamb_i
@@ -584,7 +704,7 @@ return function(K)
       for b = 0, 2 do
         local y0 = gy0 + floor(gh * b / 3)
         local y1 = gy0 + floor(gh * (b + 1) / 3)
-        if y1 > y0 then put(min(13, base + g * (5 + b * 2)), x0 + 1 + ghx, y0, max(1, s.w - 2), y1 - y0) end
+        if y1 > y0 then put(min(12, base + g * (4 + b * 1.5)), x0 + 1 + ghx, y0, max(1, s.w - 2), y1 - y0) end
       end
       -- the carved rune, brightest
       local rx = x0 + s.w // 2 + ghx
@@ -621,7 +741,7 @@ return function(K)
     for k = 0, 3 do
       local bx = k * 30
       local by = floor(20 - k * 6)
-      K.haze(bx, by, bx + 34, by + 8, 0.22 + e * 0.25 + kl * 0.15 + twk * 0.1 + hi * 0.35, 1 + hi * 1.2, T * (1.5 + hi * 4) + k * 40)
+      K.haze(bx, by, bx + 34, by + 8, 0.22 + e * 0.25 + kl * 0.15 + twk * 0.1 + hi * 0.35, 1 + hi * 0.7, T * (1.5 + hi * 4) + k * 40)
     end
     for i = 0, 36 do
       local x, y = floor(K.hash(i, 64) * 128), floor(K.hash(i, 65) * 28)
@@ -630,6 +750,17 @@ return function(K)
         local big = K.hash(i, 67) > 0.85
         put(1 + tw * (1.5 + hi * 5 + twk * 3 + kl) + (big and 1.5 or 0), x, y, 1, 1)
         if big and tw > 0.6 - hi * 0.4 then put(tw * 1.5 + hi * 3, x - 1, y, 3, 1); put(tw + hi * 2, x, y - 1, 1, 3) end
+      end
+    end
+    -- an open hat flares one of the bright stars
+    if ostar > 0.05 then
+      local i = ostar_i * 3
+      local x, y = floor(K.hash(i, 64) * 128), floor(K.hash(i, 65) * 22)
+      if (x - MX) ^ 2 + (y - MY) ^ 2 > 120 then
+        local r = 1 + floor(ostar * 3)
+        line(ostar * 7, x - r, y, x + r, y)
+        line(ostar * 7, x, y - r, x, y + r)
+        put(min(13, 5 + ostar * 8), x, y, 1, 1)
       end
     end
     -- a shooting star now and then (and on fills)
@@ -653,12 +784,38 @@ return function(K)
       elseif CREST[cidx] then line(2 + kl * 0.8 + e * 0.6, cidx * 2, HILL[cidx], cidx * 2 + 1, HILL[cidx])
       elseif CREST[cidx + 1] then line(2 + kl * 0.8 + e * 0.6, cidx * 2 + 2, HILL[cidx + 1], cidx * 2 + 4, HILL[cidx + 2]) end
     end
-    for y = 38, 63, 3 do
+    for y = 39, 63, 4 do
       local u = (y - 38) / 25
       K.dashes(1, y, 1 + floor(u * 3), 12 - floor(u * 3), y * 5 + sin(T * 0.7 + y) * 1.5, 0, 128)
     end
     -- mist creeping over the hill when it's quiet
     K.haze(0, 40, 128, 62, 0.08 + 0.3 * kl + 0.08 * e, 1, T * 4)
+
+    -- the procession: torch-bearers climbing the path up the hill through
+    -- the phrase, reaching the circle as it turns
+    local ph = phrase(S)
+    local function path(u)
+      return 4 + u * (SCX - 34) + sin(u * 3.1) * 10, 63 - u * (63 - SCY - 5) + sin(u * 6) * 1.5
+    end
+    for k = 0, 6 do
+      local u0 = (k / 7)
+      local x0, y0 = path(u0)
+      local x1, y1 = path(u0 + 1 / 7)
+      line(1 + mid * 0.8, x0, y0, x1, y1)
+    end
+    for j = 0, 3 do
+      local u = ph * 0.92 - j * 0.07
+      if u > 0 then
+        local x, y = path(u)
+        local sc = 1 - u * 0.4
+        local f = 0.6 + 0.4 * sin(T * (11 + j) + j * 2)
+        line(1.5 + mid, x, y, x, y - 4 * sc)
+        put(1.5 + mid, x - 1, y - 5 * sc, 2, 1)
+        line(2 + f, x + 1, y - 4 * sc, x + 2, y - 7 * sc)
+        put(min(12, 4 + f * 4 + hi * 2 + K.bar_pulse * 2), x + 2, y - 8 * sc, 1, 1 + (f > 0.8 and 1 or 0))
+        K.ring(0.8 + f * 0.6 + lo, x + 2, y - 7 * sc, 2.5 + f, 6)
+      end
+    end
 
     -- the kick's rings of light, running out across the grass
     for i = #rings, 1, -1 do
@@ -669,7 +826,7 @@ return function(K)
       elseif age >= 0 then
         local u = age / life
         local r = 6 + age * 44
-        local lv = (1.5 + 5 * R.v) * (1 - u) ^ 1.4 * min(1, age / 0.08)
+        local lv = (1.5 + 4 * R.v) * (1 - u) ^ 1.4 * min(1, age / 0.15)
         local jit = c * 3 * (1 - u)
         K.ring(lv, SCX, SCY + 2, r, 20, 0, TAU, 0.24, jit, i)
         if c > 0.4 then K.ring(lv * 0.5, SCX + sin(R.t0 * 7) * c * 6, SCY + 2, r * 0.8, 14, 0, TAU, 0.24, jit * 2, i + 7) end
@@ -699,6 +856,9 @@ return function(K)
       end
     end
 
+    -- the bar walks round the stones, a faint glow passing from one to the next
+    local bi = floor(K.bar_ph * NST) % NST + 1
+    lit[bi] = max(lit[bi], 0.14 + 0.1 * e)
     -- the stones, back to front, each glowing with its voice
     local ch = chase and floor((T - chase.t0) / 0.05) or -1
     for _, i in ipairs(ORDER) do
@@ -710,6 +870,258 @@ return function(K)
       stone(i, s, g, false, c, e, kl, ml)
     end
     if chase and ch >= chase.n * 2 then chase = nil end
+  end
+
+  ---------------------------------------------------------------- view 3
+  -- the rock face over the fire (the fire just below the frame): the glyphs
+  -- painted on it, its cracks, the mica in it, the cave mouth up in the corner
+  local LX, LY = 64, 70
+  local CRK = {}
+  for i = 1, 9 do
+    local x, y = 4 + K.hash(i, 81) * 120, K.hash(i, 82) * 36
+    for k = 1, 4 do
+      local nx, ny = x + (K.hash(i * 7 + k, 83) - 0.5) * 12, y + 3 + K.hash(i * 7 + k, 84) * 6
+      CRK[#CRK + 1] = {x, y, nx, ny}
+      x, y = nx, ny
+    end
+  end
+  local MICA = {}
+  for i = 1, 14 do MICA[i] = {floor(4 + K.hash(i, 85) * 116), floor(4 + K.hash(i, 86) * 44)} end
+  local GLX = {{16, 13}, {98, 22}, {42, 23}, {72, 15}, {20, 37}, {48, 7}, {110, 40}}
+
+  local function masked(x, y)
+    x, y = floor(x), floor(y)
+    if y < 0 or y > 63 then return false end
+    for k = 1, mn[y], 2 do
+      if x >= mk[y][k] and x < mk[y][k + 1] then return true end
+    end
+    return false
+  end
+
+  -- one painted glyph, i = 1..7, at level l, glowing g
+  local function paint(i, l, g, T)
+    local x, y = GLX[i][1], GLX[i][2]
+    if i == 1 then                                             -- the sun
+      K.ring(l, x, y, 3, 8)
+      local rl = 3.5 + g * 3
+      for k = 0, 7 do
+        local a = k * TAU / 8 + T * 0.2
+        line(l * 0.8, x + cos(a) * 4.5, y + sin(a) * 4.5, x + cos(a) * (4.5 + rl), y + sin(a) * (4.5 + rl))
+      end
+    elseif i == 2 then                                         -- two hands
+      for h = 0, 1 do
+        local hx, hy = x + h * 9, y + h * 3
+        put(l, hx - 1, hy, 3, 3)
+        for f = 0, 3 do line(l, hx - 1 + f * 0.9, hy, hx - 2.5 + f * 1.6, hy - 3 - ((f == 1 or f == 2) and 1 or 0)) end
+        line(l, hx + 1, hy + 2, hx + 3, hy + 1)
+      end
+    elseif i == 3 then                                         -- the antelope, running when it sounds
+      local g2 = sin(T * 14) * g * 1.5
+      line(l, x - 5, y, x + 4, y)
+      line(l, x - 4, y, x - 5 - g2, y + 5); line(l, x - 3, y, x - 2 + g2, y + 5)
+      line(l, x + 3, y, x + 2 - g2, y + 5); line(l, x + 4, y, x + 5 + g2, y + 5)
+      line(l, x + 4, y, x + 6, y - 3)
+      line(l, x + 6, y - 3, x + 4, y - 8); line(l, x + 6, y - 3, x + 8, y - 7)
+      line(l * 0.8, x - 5, y, x - 7, y - 2)
+    elseif i == 4 then                                         -- the spiral, unwinding with the bend
+      local un = bend * math.exp(-bend_t / 0.5)
+      local px, py
+      for k = 0, 16 do
+        local a = k * 0.75 + T * (0.3 + g) 
+        local r = 0.6 + k * 0.42 * (1 + un * 0.5)
+        local qx, qy = x + cos(a) * r, y + sin(a) * r * 0.9
+        if px then line(l, px, py, qx, qy) end
+        px, py = qx, qy
+      end
+    elseif i == 5 then                                         -- the serpent
+      local px, py
+      for k = 0, 9 do
+        local qx = x - 12 + k * 2.7
+        local qy = y + sin(k * 0.9 - T * (0.8 + g * 6)) * (1.5 + g * 1.5)
+        if px then line(l, px, py, qx, qy) end
+        px, py = qx, qy
+      end
+      put(l + 1, px, py - 1, 2, 2)
+    elseif i == 6 then                                         -- a row of dots
+      for k = 0, 6 do
+        local dl = l * (0.6 + 0.4 * ((k + floor(T * 6 * g)) % 2))
+        put(dl, x - 9 + k * 3, y + floor(abs(k - 3) * 0.7), 2, 2)
+      end
+    else                                                       -- the hunter with his bow
+      put(l, x - 1, y - 9, 2, 2)
+      line(l, x, y - 7, x, y - 2)
+      line(l, x, y - 2, x - 2, y + 3); line(l, x, y - 2, x + 2, y + 3)
+      line(l, x, y - 6, x + 4, y - 5)
+      K.ring(l, x + 4, y - 5, 3.5, 6, -PI / 2, PI / 2, 1.3)
+      line(l * (0.7 + g), x + 1, y - 5, x + 8 + g * 6, y - 5)
+    end
+  end
+
+  -- a shadow on the wall, of a dancer between us and the fire
+  local function shadow(cx, s, a, step, hop)
+    local H = 24 * s
+    local fy = 68 - hop
+    local hip = fy - H * 0.45
+    local sh = fy - H * 0.8
+    local sp = (2 + abs(step) * 4) * s
+    for k = 0, 4 do
+      local u = k / 4
+      local yy = hip + (fy - hip) * u
+      local w = max(2, floor(2 * s + 0.5))
+      mrect(cx - sp * u - w / 2, yy, w, (fy - hip) / 4 + 1)
+      mrect(cx + sp * u - w / 2, yy, w, (fy - hip) / 4 + 1)
+    end
+    local tw = max(3, floor(4.5 * s + 0.5))
+    mrect(cx - tw / 2, sh, tw, hip - sh + 1)
+    local hr = 2.3 * s
+    for dy = -floor(hr), floor(hr) do
+      local hw = sqrt(max(0, hr * hr - dy * dy))
+      mrect(cx - hw, sh - hr - 1 + dy, max(1, hw * 2), 1)
+    end
+    for sd = -1, 1, 2 do
+      local hx = cx + sd * (4 + 4 * (1 - a)) * s
+      local hy = sh - a * H * 0.32 + (1 - a) * H * 0.18
+      for k = 1, 5 do
+        local u = k / 5
+        mrect(cx + sd * 2 * s + (hx - cx - sd * 2 * s) * u - 1, sh + (hy - sh) * u - 1, 2, 2)
+      end
+    end
+  end
+
+  local function draw3(S)
+    local T, DT, e, c, kl = K.T, K.DT, K.energy, K.chaos, K.kickless
+    local lo, hi, mid, amp = A[K.LO], A[K.HI], A[K.MID], A[K.AMP]
+    for y = 0, 63 do mn[y] = 0 end
+    local ph = phrase(S)
+    local tgt = (0.3 + 0.45 * e + lo * 0.35 + flare * 0.5 + roll * 0.3 + ph * 0.12) * (1 - 0.82 * kl)
+    fs = K.follow(fs, tgt, tgt > fs and 0.12 or 0.3, DT)
+    local fl = 0.85 + 0.15 * sin(T * 11.3) * sin(T * 7.1 + 1)
+    local light = clamp(fs * fl * 1.2 + amp * 0.2, 0.05, 1.3)
+    -- the light sways a little with the bar, and staggers with chaos
+    local lx = LX + sin(K.bar_ph * TAU) * 4 + c * sin(T * 1.7) * 5
+
+    -- the shadows: the dancers circle the fire, thrown huge on the wall
+    local n = 4 + floor(e * 2 + 0.5)
+    local hop = K.env.kick * 1.3
+    for i = 1, n do
+      local th = (i - 1) * TAU / n + dph * 1.3
+      local d = (sin(th) + 1) / 2                                  -- 1 = right by the fire
+      local s = (0.8 + 0.6 * d + lo * 0.12 + flare * 0.12) * (1 - 0.3 * kl)
+      local cx = lx + cos(th) * (26 + 12 * d)
+      local a = clamp(0.3 + 0.35 * sin(K.beat_ph * TAU + i) + clapv * 0.9, 0, 1)
+      local step = sin(T * 5 + i * 1.7) * (1 - 0.5 * kl)
+      shadow(cx, s, a, step, hop * s + ((i == stamp_i % n + 1) and stamp * 4 or 0))
+      -- a second fire flickering: chaos throws doubled shadows
+      if c > 0.35 and i % 2 == 1 then
+        shadow(cx + (8 + 10 * c) * sin(T * 2.1 + i), s * 0.85, 1 - a, -step, 0)
+      end
+    end
+
+    -- the wall: banks of firelight, brightest low and close over the flames
+    -- (the core and the near bank solid, the outer bank on every fourth row:
+    -- firelight on ridged rock)
+    local R0 = 14 + light * 12 + lo * 5
+    local R1 = min(46, R0 + 14 + e * 6)
+    local R2 = R1 + 22
+    for y = 0, 63 do
+      local dy = (LY - y) * 1.25
+      local Rp = 0
+      for b = 0, 2 do
+        local R = b == 0 and R0 or b == 1 and R1 or R2
+        local hw = R > dy and sqrt(R * R - dy * dy) or 0
+        if hw > Rp + 0.5 and (b < 2 or y % 4 == 0) then
+          local l = (b == 0 and (1.6 + light * 1.6) or b == 1 and (1 + light * 0.5) or 1) * (0.9 + 0.1 * fl)
+          if b == 0 then span(l, lx - hw, lx + hw, y)
+          elseif b == 1 then
+            span(l, lx - hw, lx - Rp, y)
+            span(l, lx + Rp, lx + hw, y)
+          else
+            -- the outer bank: the rock's grain, short upright strokes
+            local o = (y // 4) % 2 * 4
+            for x = floor(lx - hw) + o - (floor(lx - hw) % 8), lx + hw, 8 do
+              if (x < lx - Rp or x > lx + Rp) and not masked(x, y) then put(l, x, y, 1, 3) end
+            end
+          end
+        end
+        Rp = max(Rp, hw)
+      end
+    end
+    -- the wall's light at a point (for the paint, the cracks and the mica)
+    local function wl(x, y)
+      local d = sqrt((x - lx) ^ 2 + ((LY - y) * 1.25) ^ 2)
+      return clamp(1 - d / (R1 + 10), 0, 1) * light
+    end
+
+    -- the cracks in the rock: dark seams, their lips catching the light
+    for _, k in ipairs(CRK) do
+      local w = wl(k[1], k[2])
+      if not masked(k[1], k[2] + 1) then line(0.8 + w * 2.5 + mid * 0.5, k[1], k[2], k[3], k[4]) end
+    end
+    -- soot on the roof, stirred by the heat; more of it when chaos burns
+    K.haze(0, 0, 92, 12, 0.15 + c * 0.25 + e * 0.1, 1, T * (4 + hi * 8))
+
+    -- the cave mouth up in the corner: the night outside, brighter as the
+    -- fire sinks, with a few stars
+    K.ring(1.5 + kl * 1.5 + amp, 116, -2, 20, 10, 0, PI, 0.7, 1, 3)
+    for k = 0, 5 do
+      local sx, sy = 100 + floor(K.hash(k, 97) * 26), floor(K.hash(k, 98) * 11)
+      if (sx - 116) ^ 2 + ((sy + 2) / 0.7) ^ 2 < 300 then
+        local tw = 0.5 + 0.5 * sin(T * (0.8 + K.hash(k, 99)) + k * 2)
+        put(1 + tw * (1 + kl * 4 + hi * 3), sx, sy, 1, 1)
+      end
+    end
+    if kl > 0.05 then K.haze(98, 0, 128, 12, kl * 0.5, 1 + kl, T * 2) end
+
+    -- the painted glyphs: each voice's own; the phrase tells their story,
+    -- waking them one by one; a shadow passing over one darkens it
+    local ch = chase and floor((T - chase.t0) / 0.05) or -1
+    for i = 1, NG do
+      local g = gg[i]
+      if chase and ch >= 0 and ch < chase.n * 2 and (ch % NG) + 1 == i then g = max(g, 0.7) end
+      local story = clamp(ph * NG - (i - 1), 0, 1)
+      local x, y = GLX[i][1], GLX[i][2]
+      local base = 1 + wl(x, y) * 2.2 + story * 1.2 + mid * 0.9
+      if masked(x, y) then base = base * 0.4 end
+      paint(i, min(13, base + g * 9), g, T)
+    end
+    if chase and ch >= chase.n * 2 then chase = nil end
+
+    -- mica in the rock: the hats catch a fleck of it, open hats a star of it
+    for i = 1, #MICA do
+      local m = MICA[i]
+      local tw = 0.5 + 0.5 * sin(T * (1.3 + K.hash(i, 87) * 2) + i * 2.3)
+      local l = wl(m[1], m[2]) * (1 + tw * 2) + hi * tw * 3
+      if i == mica_i then l = l + mica * 9 end
+      if not masked(m[1], m[2]) then put(l, m[1], m[2], 1, 1) end
+      if i == mica_i and mopen > 0.1 then
+        local r = 1 + floor(mopen * 3)
+        line(mopen * 6, m[1] - r, m[2], m[1] + r, m[2])
+        line(mopen * 6, m[1], m[2] - r, m[1], m[2] + r)
+      end
+    end
+
+    -- the fire's tips along the bottom edge, and its sparks
+    local H = 3 + fs * 10
+    for t = 0, 4 do
+      local tx = lx + (t - 2) * (4 + fs * 2)
+      local th = H * (t == 2 and 1 or (0.55 + 0.25 * sin(T * 5.7 + t * 2)) * (1 - abs(t - 2) * 0.15))
+      for r = 0, floor(th) do
+        local u = r / max(1, th)
+        local w = (2 + fs * 2.5) * (1 - u)
+        local ox = sin(T * 9 + r * 0.6 + t * 2) * u * 2 + hi * u * sin(T * 23 + r * 2.1) + c * u * 2 * sin(T * 13 + r)
+        if w >= 0.5 then
+          put((3 + 6 * (1 - u)) * (0.8 + 0.25 * fl) * min(1, 0.5 + fs), tx + ox - w, 63 - r, max(1, w * 2), 1)
+        end
+      end
+    end
+    if hopen > 0.05 then
+      for k = 0, 4 do
+        local y = 60 - H - k * 3
+        local ox = sin(T * 13 + k * 1.9) * (1 + k * 0.6)
+        put(hopen * (3.5 - k * 0.5) + hi, lx + ox - 2 - k, y, 4 + k * 2, 1)
+      end
+    end
+    run_sparks(14)
   end
 
   ---------------------------------------------------------------- draw
@@ -725,6 +1137,13 @@ return function(K)
     pillar = pillar * math.exp(-DT / 0.7)
     pv = K.follow(pv, pillar, 0.08, DT)
     twk = twk * math.exp(-DT / 0.2)
+    hopen = hopen * math.exp(-DT / 0.35)
+    whirl = whirl * math.exp(-DT / 0.9)
+    ostar = ostar * math.exp(-DT / 0.3)
+    mica = mica * math.exp(-DT / 0.1)
+    mopen = mopen * math.exp(-DT / 0.4)
+    for i = 1, NG do gg[i] = gg[i] * math.exp(-DT / (i == 4 and 0.7 or 0.45)) end
+    dph = dph + K.DTS * ((0.22 + 0.25 * K.energy) * (1 - 0.65 * K.kickless) + whirl * 1.6)
     bend_t = bend_t + DT
     for d = 1, 2 do dh[d] = dh[d] * math.exp(-DT / 0.13) end
     -- the stones' glow: a long ritual reverb
@@ -740,10 +1159,11 @@ return function(K)
         burst(2, rat_q[i].v, 24, 16)
         local j = (floor(K.T * 20) % NST) + 1
         lit[j] = max(lit[j], rat_q[i].v * 0.6)
+        glyph((floor(K.T * 20) % NG) + 1, rat_q[i].v * 0.7)
         table.remove(rat_q, i)
       end
     end
-    if K.view == 2 then draw2(S) else draw1(S) end
+    if K.view == 2 then draw2(S) elseif K.view == 3 then draw3(S) else draw1(S) end
   end
 
   M.init()

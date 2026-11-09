@@ -1,23 +1,38 @@
 -- footwork. view 1: a battle circle seen from above at an angle, a ring of onlookers round a lit pool and a dancer's sneakers blurring through the steps.
 -- view 2: a pair of sneakers in close-up on a floor lit by the speaker stacks behind them; every hit is a step that leaves a light trail.
+-- view 3: the crane shot: the circle straight from above, heads all round, the dancer's steps chalked on the floor as a pattern that keeps redrawing itself.
 --
 -- view 1: kicks are foot strikes that leave glowing footprints on the floor;
--- hats flick the free foot (blur trails); toms throw the dancer into a spin
--- (a motion ring round him); snares and claps clap the crowd's hands up and
--- flash the pool; vox chops (perc 16) send a hype shout rippling round the
--- ring of onlookers, arms going up as it passes; ticks are phone flashes in
--- the crowd; ratchets run a burst of prints, fills raise the whole crowd.
--- out_amp lights the overhead lamp and its pool, out_lo bounces the crowd
--- and pumps the pool's core, out_mid lights the chalk circle and the faces,
--- out_hi glints the sneakers and the dust in the lamp. energy fills the
--- ring and speeds the steps, chaos brings ghost dancers and scatters the
--- prints, kickless stretches slow him into a glide and set the crowd swaying.
+-- closed hats flick the free foot (blur trails), open hats kick up a puff of
+-- dust; toms throw the dancer into a spin (a motion ring round him); snares
+-- and claps clap the crowd's hands up and flash the pool; vox chops (perc
+-- 16) send a hype shout rippling round the ring of onlookers, arms going up
+-- as it passes; ticks are phone flashes in the crowd; ratchets run a burst
+-- of prints, fills raise the whole crowd. the chalk circle lights round with
+-- the bar, and the crowd packs in tighter through the phrase. out_amp lights
+-- the overhead lamp and its pool, out_lo bounces the crowd and pumps the
+-- pool's core, out_mid lights the chalk circle and the faces, out_hi glints
+-- the sneakers and the dust in the lamp. energy fills the ring and speeds the
+-- steps, chaos brings ghost dancers and scatters the prints, kickless
+-- stretches slow him into a glide and set the crowd swaying.
 -- view 2: kicks stomp the near shoe (a pool of light where it lands),
--- snares tap the far toe with sparks, hats lift the heels, toms twist a
--- shoe across the floor in an arc, vox chops flare the speaker cones and the
--- LED strip. out_lo pumps the cones and the floor glow in front of them,
+-- snares tap the far toe with sparks, closed hats lift the heels, open hats
+-- take a step, toms twist a shoe across the floor in an arc, vox chops flare
+-- the speaker cones and the LED strip, which also runs a chase round with
+-- the bar. out_lo pumps the cones and the floor glow in front of them,
 -- out_mid lights the floor's seams and the shoes' rims, out_hi glints the
 -- laces and the floor sparkle, out_amp lights the LED strip between stacks.
+-- view 3: each kick chalks a footprint and joins it to the last with a line,
+-- so the steps draw their own pattern on the floor, fading as it goes;
+-- closed hats tap a toe mark, open hats scuff an arc; toms spin him with a
+-- motion ring, snares and claps put the crowd's hands up round the ring,
+-- vox chops run a shout round the heads, ticks flash phones; ratchets run a
+-- line of prints, fills spin him and raise every hand. a chalk hand sweeps
+-- round the circle with the bar and the camera turns slowly through the
+-- phrase. out_lo swells the pool of light, out_mid the chalk and the rims of
+-- the heads, out_hi the sneakers and the dust, out_amp the crowd. chaos
+-- scatters the steps and ghosts the dancer, kickless stretches let him glide
+-- and the crowd sway.
 return function(K)
   local M = {}
   local put, line, A, clamp = K.put, K.line, K.A, K.clamp
@@ -46,6 +61,9 @@ return function(K)
   local glows, sparks
   local cone2, flare, strip
   local cs2, fs2
+  -- view 3, and the feet's phases
+  local pr3, scuffs, puffs1, fph, dph, cam, bars
+  local dust1 = 0
 
   function M.init()
     prints, waves, phones = {}, {}, {}
@@ -62,6 +80,8 @@ return function(K)
     glows, sparks = {}, {}
     cone2, flare, strip = 0, 0, 0
     cs2, fs2 = 0, 0
+    pr3, scuffs, puffs1 = {}, {}, {}
+    fph, dph, cam, bars = 0, 0, 0, 0
   end
   M.clear = M.init
 
@@ -70,7 +90,7 @@ return function(K)
 
   local function dancer_c()
     local e, kl = K.energy, K.kickless
-    local x = CX + sin(K.T * (0.35 + kl * 0.25)) * (6 + e * 6 + kl * 10)
+    local x = CX + sin(dph) * (6 + e * 6 + kl * 10)
     local y = CY + 1 + sin(K.T * 0.23) * 2
     return x, y
   end
@@ -90,8 +110,11 @@ return function(K)
     f.tu, f.tv = cos(a) * r, sin(a) * r * 0.9
     local cx, cy = dancer_c()
     local ca, sa = cos(spin), sin(spin)
-    local x, y = proj(f.tu * ca - f.tv * sa, f.tu * sa + f.tv * ca, cx, cy)
+    local u3, v3 = f.tu * ca - f.tv * sa, f.tu * sa + f.tv * ca
+    local x, y = proj(u3, v3, cx, cy)
     stamp(x, y, 4 + 7 * v)
+    if #pr3 >= 14 then table.remove(pr3, 1) end
+    pr3[#pr3 + 1] = {u = u3 + (cx - CX) / 1.4, v = v3, t0 = K.T, lv = 4 + 7 * v, k = fi}
   end
 
   local function shout(v, a0)
@@ -147,7 +170,12 @@ return function(K)
     f.tu = f.tu + (K.rnd() - 0.5) * 5
     f.tv = f.tv + (K.rnd() - 0.5) * 4
     local i = (K.step % 2) + 1
-    if open then step(i, (K.rnd() - 0.5) * 10, 3, 0.22) else
+    if #scuffs >= 6 then table.remove(scuffs, 1) end
+    scuffs[#scuffs + 1] = {k = fi, t0 = K.T, open = open, v = v, a = K.rnd() * K.TAU}
+    if open then
+      step(i, (K.rnd() - 0.5) * 10, 3, 0.22)
+      if #puffs1 < 4 then puffs1[#puffs1 + 1] = {k = 3 - fi, t0 = K.T, v = v} end
+    else
       local s = shoes[i]
       s.lift = max(s.lift, 0.6 * v)
     end
@@ -205,10 +233,22 @@ return function(K)
       stamp(cx + cos(a) * (3 + k * 2.2), cy + sin(a) * (1.5 + k * 0.9) + (k % 2) * 2 - 1, 9 - k * 0.5)
     end
     rat = 1
+    for k = 0, n - 1 do
+      if #pr3 >= 14 then table.remove(pr3, 1) end
+      pr3[#pr3 + 1] = {u = cos(a) * (3 + k * 2.2), v = sin(a) * (3 + k * 2.2), t0 = K.T, lv = 9 - k * 0.5, k = k % 2 + 1}
+    end
     for k = 1, min(n, 6) do
       glow2(20 + k * 14, 52 + (k % 2) * 6, 6, 8)
     end
     shoes[1].lift, shoes[2].lift = 0.8, 0.8
+  end
+
+  function M.bar() bars = bars + 1 end
+
+  local function phrase()
+    local S = K.S or {}
+    local len = max(1, K.num(S.phrase_len, 16))
+    return clamp(K.num(S.phrase_pos, 0) / len + K.bar_ph / len, 0, 1)
   end
 
   function M.fill()
@@ -289,21 +329,20 @@ return function(K)
     line(lv * 0.8, sx, sy + 1, sx - ca * reach, sy + 1 - sa * reach * 0.4 - sw)
   end
 
-  local function draw1(S)
-    local T, DT, e, c, kl = K.T, K.DT, K.energy, K.chaos, K.kickless
-    local lo, mid, hi, amp = A[K.LO], A[K.MID], A[K.HI], A[K.AMP]
+  -- feet: ease toward their targets, idle shuffle, and record the trails
+  local function move_feet()
+    local DT, e, kl = K.DT, K.energy, K.kickless
     local cx, cy = dancer_c()
-
-    -- feet: ease toward their targets, idle shuffle, and record the trails
     local rate = 0.5 + e * 0.7 - kl * 0.25
+    fph = fph + K.DTS * K.TAU * rate
     for k = 1, 2 do
       local f = feet[k]
       local base = k == 1 and -3 or 3
       f.tu = K.follow(f.tu, base, 0.6, DT)
       f.tv = K.follow(f.tv, 0, 0.6, DT)
-      local sh = sin(T * K.TAU * rate * 2 + k * PI) * (1.5 + e * 1.5)
+      local sh = sin(fph * 2 + k * PI) * (1.5 + e * 1.5)
       f.u = K.follow(f.u, f.tu + sh, 0.035, DT)
-      f.v = K.follow(f.v, f.tv + cos(T * K.TAU * rate + k) * 1.2, 0.035, DT)
+      f.v = K.follow(f.v, f.tv + cos(fph + k) * 1.2, 0.035, DT)
       local ca, sa = cos(spin), sin(spin)
       local x, y = proj(f.u * ca - f.v * sa, f.u * sa + f.v * ca, cx, cy)
       table.insert(f.tr, 1, {x, y})
@@ -311,6 +350,14 @@ return function(K)
     end
     spinv = spinv * math.exp(-DT / 0.45)
     spin = spin + (spinv + kl * 1.5 + 0.4) * K.DTS
+  end
+
+  local function draw1(S)
+    local T, DT, e, c, kl = K.T, K.DT, K.energy, K.chaos, K.kickless
+    local lo, mid, hi, amp = A[K.LO], A[K.MID], A[K.HI], A[K.AMP]
+    move_feet()
+    local cx, cy = dancer_c()
+    local ph = phrase()
 
     -- the back wall: a dim hall, the lamp's cone and two stacks
     for y = 11, 20, 3 do stip(0.8 + (y - 10) / 10 * (0.5 + amp * 1.5 + e * 0.5), y, 0, 128) end
@@ -329,7 +376,7 @@ return function(K)
     for y = 3, 25, 3 do
       local u = y / 26
       local hw = 5 + u * 30
-      K.dashes(lamp * (0.4 + hi * 2.2), y, 1, 6, T * (6 + hi * 20) + y * 7, floor(CX - hw), floor(CX + hw))
+      K.dashes(lamp * (0.4 + hi * 2.2), y, 1, 6, dust1 + y * 7, floor(CX - hw), floor(CX + hw))
     end
 
     -- the floor: the ellipse, the pool under the lamp, the chalk circle
@@ -346,6 +393,21 @@ return function(K)
       end
     end
     K.ring(2 + mid * 4 + clapt * 2, CX, CY, RX - 3, 30, 0, K.TAU, RY / RX * 1.05)
+    -- the bar goes round the chalk circle
+    local ba = K.bar_ph * K.TAU - PI * 0.5
+    K.ring(3 + mid * 3 + K.duck * 2, CX, CY, RX - 3, 6, ba - 0.5, ba, RY / RX * 1.05)
+    -- open hats: a puff of dust at the foot that swung
+    for j = #puffs1, 1, -1 do
+      local P = puffs1[j]
+      local age = T - P.t0
+      if age > 0.5 then table.remove(puffs1, j)
+      else
+        local f = feet[P.k]
+        local ca, sa = cos(spin), sin(spin)
+        local x, y = proj(f.u * ca - f.v * sa, f.u * sa + f.v * ca, cx, cy)
+        K.ring((3 + 5 * P.v) * (1 - age / 0.5), x, y - 1 - age * 6, 2 + age * 10, 10, 0, K.TAU, 0.5, 1, j)
+      end
+    end
     if kl > 0.2 then K.ring(kl * (2 + mid * 2), CX, CY, RX * 0.45, 20, 0, K.TAU, 0.3) end
 
     -- the prints, glowing and fading on the floor
@@ -398,7 +460,7 @@ return function(K)
         end
       end
     end
-    local shown = 0.55 + e * 0.45
+    local shown = 0.45 + e * 0.4 + ph * 0.2
     local ord = {}
     for i = 1, NCR do ord[i] = i end
     table.sort(ord, function(p, q)
@@ -484,7 +546,8 @@ return function(K)
     for x = 37, 91, 6 do line(0.8 + amp * 1.6 + fs2 * 2.5 + (x % 12 == 1 and hi * 2 or 0), x, 3, x, FY - 1) end
     for k = 0, 11 do
       local w = 0.5 + 0.5 * sin(T * 2 + k * 0.9 + fs2 * 6)
-      put(sl * (0.6 + 0.4 * w), 36 + k * 5, 18, 3, 1)
+      local ch = max(0, 1 - abs(k - K.bar_ph * 12) * 0.5)
+      put(sl * (0.6 + 0.4 * w) + ch * 3, 36 + k * 5, 18, 3, 1)
     end
     -- the speaker stacks: boxes, two cones each, pumping with the sub
     for side = 0, 1 do
@@ -599,15 +662,170 @@ return function(K)
     K.grain(function(u, v) return u * 128, FY + 2 + v * 30 end, 2 + hi * 18 + e * 4, 3 + hi * 5)
   end
 
+
+  ---------------------------------------------------------------- view 3
+  local OX, OY = 64, 32                          -- the circle's centre, from above
+  local SC3 = 2.2                                -- px per floor unit
+
+  local function draw3(S)
+    local T, DT, e, c, kl = K.T, K.DT, K.energy, K.chaos, K.kickless
+    local lo, mid, hi, amp = A[K.LO], A[K.MID], A[K.HI], A[K.AMP]
+    move_feet()
+    local ph = phrase()
+    cam = cam + K.DTS * (0.04 + kl * 0.05 + ph * 0.05)
+    local ca0, sa0 = cos(cam), sin(cam)
+    -- the floor, turned by the camera
+    local function at(u, v)
+      local x, y = u * ca0 - v * sa0, u * sa0 + v * ca0
+      return OX + x * SC3, OY + y * SC3 * 0.92
+    end
+    local cx, cy = dancer_c()
+    local du = (cx - CX) / 1.4
+
+    -- the pool of light, solid rings of it, pumping with the low end
+    local core = 1 + amp * 0.6 + lo * 1.2 + pool * 1.5 - kl * 0.4
+    local px, py = at(du * 0.5, 0)
+    K.disc(1, px, py, 21 + lo * 2)
+    if core > 1.4 then K.disc(core * 0.9, px, py, 11 + lo * 3 + pool * 2) end
+    -- the chalk circle and the bar's hand sweeping round it
+    K.ring(1.5 + mid * 2.5 + clapt * 1.5, OX, OY, 28, 28, 0, K.TAU, 0.92)
+    local ba = K.bar_ph * K.TAU - PI * 0.5 + cam
+    K.ring(3 + mid * 3 + K.duck * 2, OX, OY, 28, 5, ba - 0.6, ba, 0.92)
+    -- dust in the light
+    K.grain(function(u, v) return OX - 22 + u * 44, OY - 20 + v * 40 end, 2 + hi * 14 + e * 3, 3 + hi * 5)
+
+    -- the steps: prints joined in the order they fell, the pattern fading
+    local life = 2.2 + e * 1 + kl * 1.5
+    local prx, pry
+    for i = #pr3, 1, -1 do
+      if T - pr3[i].t0 > life then table.remove(pr3, i) end
+    end
+    for i, P in ipairs(pr3) do
+      local age = T - P.t0
+      local f = 1 - age / life
+      local u, v = P.u, P.v
+      if c > 0.3 then u, v = u + sin(i * 2.3 + T) * c * 3, v + cos(i * 1.7 + T) * c * 2 end
+      local x, y = at(u, v)
+      if prx then line((1 + mid * 2.5) * f, prx, pry, x, y) end
+      prx, pry = x, y
+      local l = P.lv * f ^ 1.2 + hi * f
+      put(l, x - 1, y - 1, 3, 2)
+      put(l * 0.6, x - 1 + (P.k == 1 and -1 or 1), y + 1, 2, 1)
+      if age < 0.3 then K.ring(l * 0.6 * (1 - age / 0.3), x, y, 2 + age * 20, 10) end
+    end
+    -- toe taps and open-hat scuffs
+    for j = #scuffs, 1, -1 do
+      local Sf = scuffs[j]
+      local age = T - Sf.t0
+      local life2 = Sf.open and 0.5 or 0.25
+      if age > life2 then table.remove(scuffs, j)
+      else
+        local f = feet[Sf.k]
+        local ca, sa = cos(spin), sin(spin)
+        local x, y = at(f.u * ca - f.v * sa + du, f.u * sa + f.v * ca)
+        local l = (3 + 6 * Sf.v) * (1 - age / life2)
+        if Sf.open then K.ring(l, x, y, 4 + age * 8, 8, Sf.a, Sf.a + 2.2)
+        else put(l, x, y, 1, 1) end
+      end
+    end
+
+    -- the dancer from above: shoulders turning with the spin, arms out,
+    -- the head, and the sneakers
+    local function dancer(du2, lv, ghost)
+      local ca, sa = cos(spin), sin(spin)
+      local hx, hy = at(du2, 0)
+      for k = 1, 2 do
+        local f = feet[k]
+        local x, y = at(f.u * ca - f.v * sa + du2, f.u * sa + f.v * ca)
+        line(lv * 0.5, hx, hy, x, y)
+        put(min(13, lv + 1 + (ghost and 0 or hi * 4)), x - 1, y - 1, 3, 2)
+      end
+      local reach = 5 + min(5, abs(spinv) * 0.3)
+      local a = spin + cam
+      local sx, sy = cos(a) * 4, sin(a) * 4
+      line(lv, hx - sx, hy - sy, hx + sx, hy + sy)
+      local ax, ay = cos(a + 0.3) * (4 + reach), sin(a + 0.3) * (4 + reach)
+      line(lv * 0.8, hx + sx, hy + sy, hx + ax, hy + ay)
+      line(lv * 0.8, hx - sx, hy - sy, hx - ax, hy - ay)
+      K.disc(lv + 1, hx, hy, 2.2)
+    end
+    if c > 0.35 then
+      for g = 1, (c > 0.7 and 2 or 1) do
+        dancer(du + (g == 1 and -1 or 1) * (8 + c * 6), 2 + c * 2, true)
+      end
+    end
+    dancer(du, 5 + pool * 3 + e * 1.5, false)
+    if sring > 0.05 then
+      local hx, hy = at(du, 0)
+      K.ring(2 + sring * 7, hx, hy, 9 + (1 - sring) * 6, 14, spin + cam, spin + cam + K.TAU * 0.75)
+    end
+    if rat > 0.05 then
+      local hx, hy = at(du, 0)
+      K.ring(rat * 6, hx, hy, 5 + (1 - rat) * 16, 14)
+    end
+
+    -- the ring of heads all round: rims lit by the pool, hands up on the
+    -- claps, the shout running round, phones flashing
+    local hype = {}
+    for i = 1, NCR do hype[i] = 0 end
+    for j = #waves, 1, -1 do
+      local W = waves[j]
+      local age = T - W.t0
+      if age > 1.6 then table.remove(waves, j)
+      else
+        for i = 1, NCR do
+          local a = (i - 0.5) / NCR * K.TAU
+          for _, fr in ipairs({W.a0 + age * 4.5, W.a0 - age * 4.5}) do
+            local d = (a - fr + PI) % K.TAU - PI
+            local b = math.exp(-d * d * 3) * W.v * (1 - age / 1.6)
+            if b > hype[i] then hype[i] = b end
+          end
+        end
+      end
+    end
+    local heads = {}
+    for i = 1, NCR do
+      local a = (i - 0.5) / NCR * K.TAU + cam
+      local sway = kl * 1.5 * sin(T * 1.6 + i)
+      local bob = lo * 1.2 * max(0, sin(K.TAU * K.beat_ph + i * 0.7))
+      local r = 31 + K.hash(i, 3) * 4 + sway - bob - ph * 2
+      local x, y = OX + cos(a) * r * 1.85, OY + sin(a) * r * 0.92
+      if x > -6 and x < 134 and y > -6 and y < 70 then
+        local rl = 1.5 + amp * 2 + mid * 1.5 + hype[i] * 6
+        K.disc(1, x, y, 3.2)
+        K.ring(min(12, rl), x, y, 3.2, 8, a + PI * 0.5, a + PI * 1.5)
+        local arm = max(crowd_arm[i], hype[i], fillt * 0.9)
+        if arm > 0.1 then
+          local ix, iy = -cos(a), -sin(a)
+          local hl = 2 + arm * 6
+          put(hl, x + ix * 5 - sin(a) * 3, y + iy * 4 + cos(a) * 2, 1, 1)
+          put(hl, x + ix * 5 + sin(a) * 3, y + iy * 4 - cos(a) * 2, 1, 1)
+        end
+        heads[i] = {x, y}
+      end
+    end
+    for j = #phones, 1, -1 do
+      local P = phones[j]
+      local age = T - P.t0
+      if age > 0.5 then table.remove(phones, j)
+      else
+        local h = heads[P.i]
+        if h then put(9 * (1 - age / 0.5) + 2, h[1], h[2], 2, 1) end
+      end
+    end
+  end
+
   function M.draw(S)
     local DT = K.DT
+    dph = dph + K.DTS * (0.35 + K.kickless * 0.25)
+    dust1 = dust1 + K.DTS * (6 + A[K.HI] * 20)
     clapt = clapt * math.exp(-DT / 0.18)
     pool = pool * math.exp(-DT / 0.2)
     fillt = fillt * math.exp(-DT / 0.7)
     rat = rat * math.exp(-DT / 0.3)
     sring = sring * math.exp(-DT / 0.35)
     for i = 1, NCR do crowd_arm[i] = crowd_arm[i] * math.exp(-DT / 0.2) end
-    if K.view == 2 then draw2(S) else draw1(S) end
+    if K.view == 2 then draw2(S) elseif K.view == 3 then draw3(S) else draw1(S) end
   end
 
   M.init()

@@ -2,24 +2,45 @@
 -- turns against the comb, a dancer turns on her mirror, the wind-up key turns.
 -- view 2: a shelf of wind-up toys by a moonlit window: a soldier drummer, a
 -- cymbal monkey, a spinning top, a rubber duck, and a little train circling.
+-- view 3: a cot mobile in a dark nursery: a moon, a star, a bird and a fish
+-- turn on their strings under a wind-up crank, a little bell hangs below the
+-- hub, and a night-light on the cot rail throws turning stars on the walls.
 --
--- view 1: music-box tines (and the other perc) show a pin plucking a tooth of
--- the comb, which rings and fades; the kick bumps the whole box and warms the
--- comb; the snare rattles the lid on its hinges and flashes the clasp; hats
--- glint the lid's mirror and the dancer's tiara; squeaks squash the dancer;
--- clave knocks the key a notch; break slices and ratchets run plucks along
--- the comb; a fill sweeps the comb and spins the dancer fast. energy brings up
--- the lamp and the dust in its light, chaos makes the cylinder skip and the
--- dancer judder with a ghost beside her, and kickless stretches wind it all
--- down: the cylinder and the dancer slow and she leans.
+-- view 1: music-box tines pluck the high teeth of the comb, the skin percs
+-- (conga, bongo, talking drum, toms) the low ones, the other perc the middle,
+-- and each rings and fades; the kick bumps the whole box and warms the comb;
+-- the snare rattles the lid on its hinges and flashes the clasp; closed hats
+-- glint the dancer's tiara, open hats send a shimmer out round the mirror;
+-- squeaks squash the dancer; clave knocks the key a notch; break slices and
+-- ratchets run plucks along the comb (a kick ratchet judders the box, a hat
+-- one sparkles the mirror); a fill sweeps the comb and the dancer leaps and
+-- spins. every bar chimes a tooth and the lamp swells over the phrase. energy
+-- brings up the lamp and the dust in its light, chaos makes the cylinder skip
+-- and the dancer judder with a ghost beside her, and kickless stretches wind
+-- it all down: the cylinder and the dancer slow, she leans, and moonlight
+-- slants in across the lid.
 -- view 2: the kick swings the soldier's sticks onto his drum; the snare claps
--- the monkey's cymbals (his eyes go wide); hats spin the top up and open hats
--- set it wobbling; perc chuffs the train along the track with a puff of
--- smoke; squeaks squeeze the duck; clave clicks the soldier's sticks; music
--- box tines light the stars in the window; ratchets give the soldier a roll.
+-- the monkey's cymbals (his eyes go wide); closed hats spin the top up, open
+-- hats flash its stripe and set it wobbling; skin percs tap the soldier's
+-- drum, bells and metal tap the monkey's cymbals, other perc chuffs the train
+-- along the track with a puff of smoke; squeaks squeeze the duck; clave
+-- clicks the soldier's sticks; music box tines light the stars in the window;
+-- ratchets give the soldier a roll; a fill makes the toys hop. the moon
+-- crosses the window over the phrase and every bar the train whistles.
 -- energy brightens the moonlight and the toys' paint, chaos makes the toys
 -- judder with ghosts and rocks the train, kickless winds the toys down (sticks
 -- droop, the top slows and precesses wide, the train crawls).
+-- view 3: the kick bounces the mobile on its spring and swings the toys; the
+-- snare strikes the bell (rings spread from it); closed hats glint one of the
+-- projected stars, open hats flare the night-light's rays; music box tines
+-- light up the star field, squeaks flap the bird, skin percs flip the fish,
+-- other perc spins the star; clave and every bar turn the crank a notch;
+-- ratchets run beads down the strings; a fill whirls the whole mobile. the
+-- projection turns once a phrase. low end sets the bounce, mids the toys'
+-- paint, highs the twinkle, the level the night-light. energy fills the
+-- walls with stars, chaos tangles the strings (the toys judder, ghosts
+-- trail them and the stars double), kickless slows the mobile to a drift
+-- while the night-light takes the room.
 return function(K)
   local M = {}
   local put, line, A, clamp = K.put, K.line, K.A, K.clamp
@@ -41,6 +62,15 @@ return function(K)
   local tspin, tph, wob, prec            -- top spin rate, phase, wobble, precession angle
   local duck, trn, tv, puffs, stars      -- duck squeeze, train angle / speed, smoke, star glint
   local hop, click                       -- fill hop, clave click
+  local ohat, chime, whistle, leap       -- open-hat shimmer, bar chime, bar whistle, fill leap
+  local rjud                             -- a kick ratchet's judder
+  -- view 3
+  local mr, mrv, mrvE                    -- mobile angle, its spin boost (and eased)
+  local sw, swp                          -- per toy: swing amplitude, swing phase
+  local flap, flip, flipv                -- bird flap, fish flip target and its eased angle
+  local sspin, sang                      -- star spin rate, its angle
+  local bell, bellr, rays, crank         -- bell strike, its sound rings, light rays, crank angle
+  local sglint, beads, hub               -- star glints {i, v}, beads {k, t0}, hub bounce
 
   function M.init()
     vib, pinlit = {}, {}
@@ -55,6 +85,12 @@ return function(K)
     tspin, tph, wob, prec = 3, 0, 0.15, 0
     duck, trn, tv, puffs, stars = 0, 0, 0, {}, 0
     hop, click = 0, 0
+    ohat, chime, whistle, leap, rjud = 0, 0, 0, 0, 0
+    mr, mrv, mrvE = 0, 0, 0
+    sw, swp = {0.3, 0.3, 0.3, 0.3}, {0, 1.3, 2.6, 3.9}
+    flap, flip, flipv, sspin, sang = 0, 0, 0, 0, 0
+    bell, bellr, rays, crank = 0, {}, 0, 0
+    sglint, beads, hub = {}, {}, 0
   end
   M.clear = M.init
 
@@ -82,6 +118,8 @@ return function(K)
     warm = math.max(warm, v)
     stick[stick_side] = 1
     stick_side = 3 - stick_side
+    hub = max(hub, v)
+    for i = 1, 4 do sw[i] = min(1.4, sw[i] + 0.35 * v * (0.6 + 0.4 * K.hash(i, 51))) end
   end
   function M.snare(v, n)
     v = K.num(v, 1)
@@ -89,38 +127,62 @@ return function(K)
     clasp = math.max(clasp, v)
     cym = 1
     eyes = 1
+    bell = max(bell, v)
+    if #bellr < 4 then bellr[#bellr + 1] = {t0 = K.T, v = v} end
   end
   function M.hat(v, open)
     v = K.num(v, 1)
-    glint = math.max(glint, (open and 1 or 0.6) * v)
-    tspin = math.min(9, tspin + (open and 1.2 or 0.6) * v)
-    if open then wob = math.min(0.9, wob + 0.25 * v) end
+    if open then
+      ohat = max(ohat, v)
+      rays = max(rays, v)
+      wob = min(0.9, wob + 0.25 * v)
+      tspin = min(9, tspin + 0.5 * v)
+    else
+      glint = max(glint, 0.7 * v)
+      tspin = min(9, tspin + 0.8 * v)
+      if #sglint < 6 then sglint[#sglint + 1] = {i = floor(K.rnd() * 40), v = v} end
+    end
   end
   function M.perc(kind, v)
     v = K.num(v, 1)
     kind = floor(K.num(kind, 1))
-    if kind == 12 then
+    if kind == 12 or kind == 19 then
       squash = math.max(squash, 0.5 + 0.5 * v)
       duck = math.max(duck, 0.5 + 0.5 * v)
+      flap = max(flap, 0.5 + 0.5 * v)
       return
     end
     if kind == 4 then
       knock = 1
       kr = kr + 0.5
       click = 1
+      crank = crank + 0.6
       return
     end
-    if kind == 11 then
-      pluck(pick(), v)
-      if K.rnd() < 0.4 then pluck(pick(), v * 0.7) end
+    local skin = kind == 1 or kind == 2 or kind == 13 or kind == 17 or kind == 18
+    local bellk = kind == 3 or kind == 6 or kind == 10 or kind == 21
+    if kind == 11 or kind == 8 then
+      pluck(11 + floor(K.rnd() * 5), v)                      -- the high teeth
+      if K.rnd() < 0.4 then pluck(10 + floor(K.rnd() * 6), v * 0.7) end
       stars = math.max(stars, v)
+    elseif skin then
+      pluck(1 + floor(K.rnd() * 5), v * 0.8)                 -- the low teeth
+      stick[stick_side] = max(stick[stick_side], 0.5 * v)
+      stick_side = 3 - stick_side
+      flip = flip + PI * (0.6 + 0.4 * v)
+      return
     else
-      pluck(pick(), v * 0.7)
+      pluck(5 + floor(K.rnd() * 6), v * 0.7)                 -- the middle
+      if bellk then cym = max(cym, 0.55 * v); bell = max(bell, 0.5 * v); return end
+      sspin = sspin + 2.5 * v
     end
     tv = tv + 0.6 * v
     if #puffs < 6 then puffs[#puffs + 1] = {t0 = K.T, u = trn, v = v} end
   end
-  function M.tom(v) v = K.num(v, 1); pluck(1 + floor(K.rnd() * 4), v); tv = tv + 0.4 * v end
+  function M.tom(v)
+    v = K.num(v, 1); pluck(1 + floor(K.rnd() * 4), v); tv = tv + 0.4 * v
+    flip = flip + PI * 0.7
+  end
   function M.tick(kind)
     kr = kr + 0.15
     click = math.max(click, 0.5)
@@ -138,15 +200,36 @@ return function(K)
       if #sched < 24 then sched[#sched + 1] = {t = K.T + i * 0.05, k = (k0 - 1 + i * dir) % NT + 1, v = 0.8 - i * 0.04} end
     end
     roll = math.max(roll, clamp(n / 6, 0.3, 1))
+    if voice == "kick" then rjud = 1 elseif voice == "hat" then ohat = max(ohat, 0.7) end
+    for i = 1, min(n, 6) do
+      if #beads < 12 then beads[#beads + 1] = {k = (i - 1) % 4 + 1, t0 = K.T + i * 0.04} end
+    end
     spin = math.max(spin, clamp(n / 8, 0.4, 0.8))      -- the dancer whirls through the burst
+  end
+  function M.bar(S)
+    chime = 1
+    whistle = 1
+    crank = crank + 0.4
+    local b = floor(K.num(type(S) == "table" and S.bar, 0) % 4)
+    pluck(NT - b * 2, 0.55)
+    if #puffs < 6 then puffs[#puffs + 1] = {t0 = K.T, u = trn, v = 0.5} end
   end
   function M.fill()
     spin = 1
     hop = 1
+    leap = 1
+    mrv = 1
     for i = 0, NT - 1 do
       if #sched < 24 then sched[#sched + 1] = {t = K.T + i * 0.035, k = i + 1, v = 0.7} end
     end
     tv = tv + 1
+  end
+
+  -- how far through the phrase we are, 0..1, smooth across the bar
+  local function phrase(S)
+    local len = max(1, floor(K.num(S.phrase_len, 16)))
+    local pos = K.num(S.phrase_pos, 0) % len
+    return clamp((pos + K.bar_ph) / len, 0, 1)
   end
 
   ---------------------------------------------------------------- view 1
@@ -157,8 +240,9 @@ return function(K)
   local function draw1(S)
     local T, DT, e, c = K.T, K.DT, K.energy, K.chaos
     local lo, hi, mid, kl = A[K.LO], A[K.HI], A[K.MID], K.kickless
-    local by = bumpy
-    local lamp = 0.4 + e * 0.8 + A[K.AMP] * 1.1 + lo * 0.3
+    local ph = phrase(S)
+    local lamp = 0.4 + e * 0.8 + A[K.AMP] * 1.1 + lo * 0.3 + ph * 0.5 + chime * 0.3
+    local by = bumpy + ((rjud > 0.2 and floor(T * 25) % 2 == 0) and 1 or 0)
 
     -- the room: dim wallpaper sprigs either side of the box, the table
     for y = 2, 58, 6 do
@@ -166,7 +250,8 @@ return function(K)
       for x = o + 1, 127, 8 do
         if x < 11 or x > 117 or y < 3 then
           local d = math.abs(x - 64) / 64
-          put(1 + (1 - d) * 0.3 * lamp, x, y, 1, 1)
+          local wv = max(0, sin(x * 0.09 - T * 0.7 + y * 0.06))
+          put(1 + (1 - d) * 0.3 * lamp + wv * (0.4 + hi * 1.2 + e * 0.4), x, y, 1, 1)
           if (x + y) % 3 == 0 then put(1, x - 1, y + 1, 3, 1) end
         end
       end
@@ -224,6 +309,27 @@ return function(K)
       line(4 + glint * 8, gx - 2, gy, gx + 2, gy)
       line(4 + glint * 8, gx, gy - 2, gx, gy + 2)
     end
+    -- chaos cracks the mirror: shards that catch the light out of step
+    if c > 0.2 then
+      local cx0, cy0 = mx + 4, my - 3
+      for k = 0, 4 do
+        local a = K.hash(k, 81) * TAU
+        local r = 5 + K.hash(k, 82) * 7
+        local fl = 0.5 + 0.5 * sin(T * (2 + k) + k * 1.7)
+        line(1 + (c - 0.2) * 5 * fl + hi * 2, cx0, cy0, cx0 + cos(a) * r, cy0 + sin(a) * r * 0.82)
+      end
+    end
+    -- open hats: a shimmer spreading out round the mirror
+    if ohat > 0.08 then
+      K.ring(2 + ohat * 7, mx, my, 13.5 + (1 - ohat) * 8, 18, 0, TAU, 0.8)
+    end
+    -- kickless: moonlight slants in across the lid from the right
+    if kl > 0.08 then
+      for i = 0, 4 do
+        local x0 = 70 + i * 9 + sin(T * 0.3 + i) * 2
+        line(1 + kl * 1.6 + (i % 2) * 0.5 * kl, x0, 4, x0 - 20, 28)
+      end
+    end
     -- the clasp on the lid's top edge, flashing on the snare
     put(3 + clasp * 9, 62 + lj, 2 + ly, 4, 2)
     -- hinge chains, rattling
@@ -273,7 +379,7 @@ return function(K)
     end
     -- the comb: a steel base and its teeth, each ringing when plucked
     put(2.5 + warm * 2 + lo * 2.5, 19, 39 + by, 43, 2)
-    line(5 + warm * 3 + e, 19, 39 + by, 61, 39 + by)
+    line(5 + warm * 3 + e + chime * 2, 19, 39 + by, 61, 39 + by)
     for k = 1, NT do
       local x = tx(k)
       local vv = vib[k]
@@ -287,7 +393,8 @@ return function(K)
     -- the dancer on her mirror
     local dy = by
     fell(2 + e * 0.8 + glint * 2, DX, 38 + dy, 12, 2.5)
-    K.ring(3.5 + e + glint * 3, DX, 38 + dy, 13, 16, 0, TAU, 0.25)
+    K.ring(3.5 + e + glint * 3 + chime * 2, DX, 38 + dy, 13, 16, 0, TAU, 0.25)
+    dy = dy - floor(sin(PI * (1 - leap)) * 3 * (leap > 0 and 1 or 0) + 0.5)
     local jud = 0
     if c > 0.15 then jud = (K.hash(floor(T * 9), 11) - 0.5) * c * 1.6 end
     local function dancer(l, x0, a, sq)
@@ -322,7 +429,7 @@ return function(K)
     put(min(13, 5 + glint * 9 + hi * 3), hx - 0.5, hy - 1, 2, 1)       -- tiara
     if c > 0.25 then dancer(1.5 + c * 1.5, DX + sin(T * 1.7) * c * 9, da - 0.6 + jud * 2, squash) end
     -- her reflection in the mirror under her feet
-    line(2 + e, DX, 39 + dy, DX, 41 + dy)
+    line(2 + e, DX, 39 + by, DX, 41 + by)
 
     -- the box front: frame, inlay, wood grain, keyhole, the key
     local fl = 3 + lamp * 0.7
@@ -379,7 +486,9 @@ return function(K)
     local T, DT, e, c = K.T, K.DT, K.energy, K.chaos
     local lo, hi, kl = A[K.LO], A[K.HI], K.kickless
     local moon = 0.8 + e * 0.7 + kl * 0.9 + A[K.AMP] * 0.5
-    local hp = 0
+    local hp = floor(sin(PI * (1 - hop)) * 2 * (hop > 0 and 1 or 0) + 0.5)
+    local ph = phrase(S)
+    local mnx = WX0 + 6 + ph * 26                      -- the moon crosses the window over the phrase
     -- chaos: one toy at a time judders
     local function jit(i)
       if c < 0.25 or floor(T * 3) % 4 + 1 ~= i then return 0 end
@@ -397,8 +506,9 @@ return function(K)
     line(fr, WX0, WY0, WX0, WY1); line(fr, WX1, WY0, WX1, WY1)
     line(fr - 1, 81, WY0, 81, WY1); line(fr - 1, WX0, 11, WX1, 11)
     put(1.5 + moon * 0.6, WX0 - 2, WY1 + 1, WX1 - WX0 + 5, 1)             -- the sill
-    K.disc(4 + moon * 1.5, 91, 7, 3.5)
-    K.ring(1.5 + moon * 0.6, 91, 7, 5.5, 12)
+    local mny = 7 + 2.5 * (2 * ph - 1) ^ 2
+    K.disc(4 + moon * 1.5 + A[K.MID], mnx, mny, 3.5)
+    K.ring(1.5 + moon * 0.6 + hi, mnx, mny, 5.5 + lo, 12)
     for i = 0, 6 do
       local sx, sy = WX0 + 2 + floor(K.hash(i, 41) * 16), WY0 + 2 + floor(K.hash(i, 42) * 17)
       if i > 3 then sx = 84 + floor(K.hash(i, 43) * 14); sy = 13 + floor(K.hash(i, 44) * 7) end
@@ -449,6 +559,9 @@ return function(K)
       put(l * 0.5, x - w / 2 + 1, y - 5, w - 2, 1)
       if eng then
         put(l, x + 1, y - 7, 2, 3)                                   -- the chimney
+        if whistle > 0.1 then
+          for k = 1, 3 do put(2 + whistle * 6, x + 2 + k * 2, y - 8 - k - (1 - whistle) * 3, 1, 1) end
+        end
         put(min(13, 6 + tv * 5 + e * 2), x + (sin(u) < 0 and -4 or 3), y - 3, 1, 1)
       else
         put(l + 2, x - 1, y - 3, 2, 1)                               -- a window
@@ -563,7 +676,9 @@ return function(K)
           if s > 0 then put(min(12, tl + 2 + s * 4 + hi * 3 + glint * 4), x + w * cos(a), y - hp, 1, 1) end
         end
       end
-      if y == 40 then put(min(12, tl + 3 + glint * 5), x - w, y - hp, max(1, w * 2), 1) end
+      if y == 40 or (y == 43 and ohat > 0.2) then
+        put(min(12, tl + 3 + glint * 4 + ohat * 6), x - w, y - hp, max(1, w * 2), 1)
+      end
     end
     put(1.5, tcx - 4, 53, 9, 1)                                        -- its shadow
 
@@ -582,6 +697,208 @@ return function(K)
     end
 
     K.grain(function(u, v) return WX0 - 30 + u * 60, 24 + v * 30 end, 1 + e * 6 + hi * 5, 2 + moon)
+  end
+
+  ---------------------------------------------------------------- view 3
+  local NLX, NLY = 111, 46               -- the night-light on the cot rail
+  local RAIL = 50
+  local LEN = {15, 21, 17, 24}           -- the toys' strings
+  local ARM = 36
+
+  local function star5(l, x, y, r, a)
+    local px, py
+    for k = 0, 10 do
+      local rr = (k % 2 == 0) and r or r * 0.45
+      local aa = a + k * PI / 5
+      local qx, qy = x + cos(aa) * rr, y + sin(aa) * rr
+      if px then line(l, px, py, qx, qy) end
+      px, py = qx, qy
+    end
+  end
+
+  local function oell(l, x, y, rx, ry) K.ring(l, x, y, rx, 10, 0, TAU, ry / rx) end
+  local function hang(k, l, x, y, s, ph, sh)
+    local fell = sh and oell or fell
+    if k == 1 then                                                  -- the moon
+      local ml = sh and l or l + ph * 3 + stars * 3
+      K.ring(ml, x, y, 5 * s, 10, PI * 0.4, PI * 1.6)
+      K.ring(ml * 0.8, x + 2 * s, y, 3.8 * s, 8, PI * 0.5, PI * 1.5)
+      if not sh then put(ml + 1, x - 3 * s, y - 1, 1, 1) end
+    elseif k == 2 then                                              -- the star
+      if sh then star5(l, x, y, 5 * s, sang); return end
+      star5(l + sspin * 2, x, y, 5 * s, sang)
+      put(min(13, l + 2 + sspin * 4 + A[K.HI] * 3), x, y, 1, 1)
+    elseif k == 3 then                                              -- the bird
+      fell(l * 0.8, x, y, 4 * s, 1.8 * s)
+      K.disc(l, x + 4 * s, y - 1.5 * s, 1.6 * s)
+      put(sh and l or l + 2, x + 6 * s, y - 1.5 * s, 2, 1)
+      line(l * 0.8, x - 4 * s, y, x - 7 * s, y - 2 * s)
+      local fw = flap > 0.1 and sin(K.T * 32) * 4 * flap or sin(K.T * 2.1 + x * 0.05) * 1.2
+      local wl = sh and l or l + flap * 5
+      line(wl, x - 1, y - 1, x - 2 * s, y - 3 * s - fw)
+      line(wl, x - 2 * s, y - 3 * s - fw, x + 2 * s, y - 1)
+    else                                                            -- the fish
+      local f = cos(flipv)
+      local rx = max(0.8, 4.5 * s * abs(f))
+      fell(l * 0.8, x, y, rx, 2.3 * s)
+      local tx0 = x - f * (rx + 0.5)
+      line(l, tx0, y, tx0 - f * 3 * s, y - 2.5 * s)
+      line(l, tx0, y, tx0 - f * 3 * s, y + 2.5 * s)
+      line(l * 0.8, tx0 - f * 3 * s, y - 2.5 * s, tx0 - f * 3 * s, y + 2.5 * s)
+      if abs(f) > 0.3 and not sh then put(min(13, l + 4), x + f * rx * 0.5, y - 1, 1, 1) end
+    end
+  end
+
+  local hubE, raysE, starsE, glowP = 0, 0, 0, 0.5
+  local function draw3(S)
+    local T, e, c = K.T, K.energy, K.chaos
+    hubE = K.follow(hubE, hub, 0.05, K.DT)
+    raysE = K.follow(raysE, rays, 0.06, K.DT)
+    starsE = K.follow(starsE, stars, 0.08, K.DT)
+    local hub, rays, stars = hubE, raysE, starsE
+    local lo, mid, hi, amp, kl = A[K.LO], A[K.MID], A[K.HI], A[K.AMP], K.kickless
+    local ph = phrase(S)
+    local glow = 0.5 + amp * 1.2 + kl * 1.2 + e * 0.4 + rays * 0.8
+
+    -- the projected stars turning round the walls, once a phrase
+    local n = floor(14 + e * 18 + kl * 6)
+    local turn = ph * 160 + T * 1.5
+    for i = 0, n - 1 do
+      local x = (K.hash(i, 61) * 160 + turn * (0.9 + K.hash(i, 64) * 0.2)) % 160 - 16
+      local y = 2 + K.hash(i, 62) * 42
+      local tw = 0.5 + 0.5 * sin(T * (1 + K.hash(i, 63) * 2) + i * 2.3)
+      local l = 1.4 + tw * (0.8 + hi * 1.6) + kl * 1 + glow * 0.3
+      if K.hash(i, 66) < 0.3 then l = l + stars * 5 end
+      for j = 1, #sglint do if sglint[j].i == i then l = l + sglint[j].v * 7 end end
+      l = min(12, l)
+      if l > 6 or K.hash(i, 65) < 0.25 then
+        put(l, x - 1, y, 3, 1); put(l, x, y - 1, 1, 3)
+      else
+        put(l, x, y, 1, 1)
+      end
+      if c > 0.4 then put(l * 0.4 * c, x + 3 + c * 3, y + 1, 1, 1) end
+    end
+    -- a low haze over the ceiling
+    K.haze(0, 0, 128, 8, 0.15 + 0.25 * kl + 0.15 * amp, 1, T * 3)
+    -- the night-light's soft pool on the wall, in scanlines
+    glowP = K.follow(glowP, glow, 0.6, K.DT)
+    local pr = 34 * (0.8 + 0.12 * min(2.5, glowP))
+    for x = NLX - 46, 127, 3 do
+      local dx = (x - NLX) / (pr * 1.35)
+      local h = pr * math.sqrt(max(0, 1 - dx * dx))
+      if h > 2 then
+        local y = RAIL - h
+        while y < RAIL - 0.5 do
+          local sh = min(6, RAIL - y)
+          put(1, x, y, 1, sh)
+          y = y + sh
+        end
+      end
+    end
+    -- the window on the far wall: the night outside, curtains stirring
+    local wl = 1.3 + amp * 0.5 + e * 0.3
+    line(wl, 6, 6, 30, 6); line(wl, 6, 36, 30, 36)
+    line(wl, 6, 6, 6, 36); line(wl, 30, 6, 30, 36); line(wl - 0.5, 18, 6, 18, 36)
+    local cx = (T * 1.2) % 40 - 8
+    put(1 + amp * 0.6, max(7, 7 + cx), 14, max(1, min(30, 19 + cx) - max(7, 7 + cx)), 1)
+    K.disc(3 + kl * 2 + ph * 2, 12, 12, 2)
+    for side = 0, 1 do
+      for f = 0, 2 do
+        local x0 = side == 0 and 3 + f * 2 or 29 + f * 2
+        local swy = sin(T * 0.6 + f + side * 2) * (1 + hi * 2 + rays)
+        line(1.5 + f * 0.3 + mid, x0, 4, x0 + swy, 40)
+      end
+    end
+    line(1.5 + amp * 0.5, 2, 4, 35, 4)                               -- the curtain rail
+
+    -- the night-light: its glow, its rays, the little dome
+    for r = 1, 3 do
+      K.ring(min(4, glow * (1.4 - r * 0.3)), NLX, NLY + 2, 4 + r * 4 + lo * 2, 14, PI, TAU)
+    end
+    for k = 0, 6 do
+      local a = PI + (k + 0.5) / 7 * PI + sin(T * 0.4) * 0.05
+      local r0, r1 = 7, 12 + rays * 16 + glow * 3
+      line(min(9, 1 + glow * 0.6 + rays * 6), NLX + cos(a) * r0, NLY + 2 + sin(a) * r0,
+        NLX + cos(a) * r1, NLY + 2 + sin(a) * r1)
+    end
+    fell(min(11, 3.5 + glow * 2.5), NLX, NLY + 2, 4, 3.5)
+    put(min(12, 5 + glow * 2 + rays * 3), NLX - 1, NLY, 2, 1)
+    put(3, NLX - 5, NLY + 3, 11, 2)
+
+    -- the cot: the rail and its bars, lit near the night-light
+    line(1.6 + mid * 0.6 + e * 0.3, 0, RAIL, 127, RAIL)
+    for x = 3, 125, 7 do
+      local near = max(0, 1 - abs(x - NLX) / 40)
+      local l = 1.2 + near * glow * 1.2 + 0.5 * max(0, sin(x * 0.07 - T * 0.5)) * (0.5 + lo)
+      put(l, x, RAIL + 3, 1, 61 - RAIL)
+    end
+
+    -- the hook, the spring and the crank
+    local hy = 9 + hub * (2 + lo * 2) + sin(T * 1.1) * 0.6
+    line(2 + amp, 64, 0, 64, hy - 6)
+    for z = 0, 2 do
+      local zy = hy - 6 + z * 1.4
+      line(2.5 + hub * 3, 62, zy, 66, zy + 0.7)
+    end
+    put(3 + e + K.bar_pulse * 3, 61, hy - 3, 7, 3)
+    local ka = crank + mr * 0.5
+    line(4 + e + K.bar_pulse * 3, 68, hy - 2, 68 + cos(ka) * 3, hy - 2 + sin(ka) * 1.5)
+
+    -- the arms
+    local tips = {}
+    for k = 1, 4 do
+      local a = mr + (k - 1) * PI / 2
+      tips[k] = {x = 64 + cos(a) * ARM, y = hy + sin(a) * 3, z = sin(a)}
+    end
+    local al = 2.5 + e * 0.7 + mid
+    line(al, tips[1].x, tips[1].y, tips[3].x, tips[3].y)
+    line(al, tips[2].x, tips[2].y, tips[4].x, tips[4].y)
+
+    -- the toys and the bell, far side first
+    local order = {1, 2, 3, 4}
+    table.sort(order, function(a, b) return tips[a].z < tips[b].z end)
+    local function toy(k)
+      local tp = tips[k]
+      local f = 0.55 + 0.45 * (tp.z + 1) / 2
+      local s = 0.8 + 0.3 * (tp.z + 1) / 2
+      local dx = sw[k] * 4 * sin(swp[k])
+      if c > 0.25 then dx = dx + (K.hash(floor(T * 7) + k * 13, 71) - 0.5) * c * 4 end
+      local x, y = tp.x + dx, tp.y + LEN[k] + abs(dx) * 0.2
+      line(1 + f * 1.3, tp.x, tp.y, x, y - 4 * s)
+      for b = 1, #beads do                                           -- ratchet beads run down
+        local B = beads[b]
+        local u = (T - B.t0) / 0.5
+        if B.k == k and u >= 0 and u < 1 then
+          put(5 + 6 * (1 - u), tp.x + (x - tp.x) * u, tp.y + (y - 4 * s - tp.y) * u, 1, 1)
+        end
+      end
+      local l = (3 + e * 1.5 + mid * 2) * f
+      if c > 0.35 then hang(k, 1.2 + c, x - dx * 0.6 - 3 * c, y + 1, s, ph) end
+      hang(k, l, x, y, s, ph)
+    end
+    -- the toys' big soft shadows thrown up the wall by the night-light
+    for k = 1, 4 do
+      local tp = tips[k]
+      local x, y = tp.x + sw[k] * 4 * sin(swp[k]), tp.y + LEN[k]
+      hang(k, min(2, 0.8 + glow * 0.3), NLX + (x - NLX) * 1.7, NLY + (y - NLY) * 1.5, 1.6, 0, true)
+    end
+    for j = 1, 4 do if tips[order[j]].z < 0 then toy(order[j]) end end
+    -- the bell under the hub
+    local bsw = bell * sin(T * 17) * 2.5
+    local bx, byy = 64 + bsw, hy + 15
+    line(1.5 + bell * 2, 64, hy, bx, byy - 3)
+    local bl = min(12, 3 + e + bell * 8 + A[K.MID] * 1.5)
+    fell(bl, bx, byy, 2.5, 3)
+    line(bl, bx - 4, byy + 3, bx + 4, byy + 3)
+    put(min(13, bl + 2), bx - bsw * 0.6, byy + 4, 1, 1)
+    for i = 1, #bellr do
+      local R = bellr[i]
+      local u = (T - R.t0) / 0.9
+      if u >= 0 and u < 1 then K.ring((1.5 + 4 * R.v) * (1 - u), bx, byy, 5 + u * 16, 16, 0, TAU, 0.55) end
+    end
+    for j = 1, 4 do if tips[order[j]].z >= 0 then toy(order[j]) end end
+
+    K.grain(function(u, v) return NLX - 40 + u * 40, 20 + v * 28 end, 1 + e * 5 + hi * 5, 2 + glow)
   end
 
   ---------------------------------------------------------------- frame
@@ -632,9 +949,36 @@ return function(K)
     tv = tv * math.exp(-DT / 0.6)
     trn = trn + DTS * (0.35 * wind + tv * 1.2 + e * 0.15)
     stars = stars * math.exp(-DT / 0.4)
-    hop = hop * math.exp(-DT / 0.12)
+    hop = max(0, hop - DT / 0.45)
     click = click * math.exp(-DT / 0.1)
-    if K.view == 2 then draw2(S) else draw1(S) end
+    ohat = ohat * math.exp(-DT / 0.3)
+    chime = chime * math.exp(-DT / 0.3)
+    whistle = whistle * math.exp(-DT / 0.4)
+    leap = max(0, leap - DT / 0.5)
+    rjud = rjud * math.exp(-DT / 0.25)
+    -- view 3's mobile
+    mrv = mrv * math.exp(-DT / 1.2)
+    mrvE = K.follow(mrvE, mrv, 0.35, DT)
+    mr = mr + DTS * (0.35 * wind + e * 0.2 + mrvE * 1.8)
+    for i = 1, 4 do
+      sw[i] = K.follow(sw[i], 0.12 + (1 - wind) * 0.25 + c * 0.2, 2.5, DT)
+      swp[i] = swp[i] + DTS * (2.2 + i * 0.17) * (0.6 + 0.4 * wind)
+    end
+    flap = flap * math.exp(-DT / 0.3)
+    flipv = K.follow(flipv, math.ceil(flip / PI - 1e-6) * PI, 0.1, DT)
+    if flip > 1e4 then flip, flipv = flip % TAU, flipv % TAU end
+    sang = (sang + DTS * (0.6 + sspin * 5)) % TAU
+    sspin = sspin * math.exp(-DT / 0.6)
+    bell = bell * math.exp(-DT / 0.25)
+    rays = rays * math.exp(-DT / 0.35)
+    hub = hub * math.exp(-DT / 0.15)
+    for i = #bellr, 1, -1 do if K.T - bellr[i].t0 > 0.9 then table.remove(bellr, i) end end
+    for i = #sglint, 1, -1 do
+      sglint[i].v = sglint[i].v * math.exp(-DT / 0.25)
+      if sglint[i].v < 0.05 then table.remove(sglint, i) end
+    end
+    for i = #beads, 1, -1 do if K.T - beads[i].t0 > 0.5 then table.remove(beads, i) end end
+    if K.view == 2 then draw2(S) elseif K.view == 3 then draw3(S) else draw1(S) end
   end
 
   M.init()

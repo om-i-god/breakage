@@ -1,23 +1,40 @@
 -- trap. view 1: a night car park under one sodium lamp, drizzle in its light, a lowered car's rear with the sub rattling the plate and the puddles.
 -- view 2: a city skyline at night under a big moon: hat rolls run along the lit windows, the 808 swells a haze glow, snares flick a searchlight.
+-- view 3: from the driver's seat in the rain: city lights blurred to rings through a wet windscreen, the wipers, the dash and the headunit glowing.
 --
 -- view 1: the long 808 shakes the car (it squats on its springs with the sub,
 -- the plate rattles, the underglow pools on the wet tarmac) and rings the
 -- puddles, whose lamp reflections wobble with the low end; the snare and
--- clap flare the lamp and its pool; hats run glints along the chrome trim
--- and a roll sends a train of them; the cowbell blinks the taillights; ticks
--- buzz the lamp; break slices drip into the puddles; a fill sweeps a passing
--- car's headlights across the wall. out_amp is the lamp's strength, out_lo
--- the car's bounce, plate and puddles, out_mid the glow in the rear window
--- and the taillights, out_hi the drizzle and the chrome. energy brightens
--- the lamp and thickens the rain, chaos doubles the car and slants the rain,
--- kickless stretches idle the car (exhaust curling up) and let fog in.
--- view 2: hats light runs of windows, rolls race along a floor; the 808
--- raises a haze glow over the skyline (out_lo holds it up); snares and claps
--- flick the searchlight across the sky; the cowbell blinks the mast beacon;
--- out_amp lights the moon and the city, out_mid the near towers' edges,
--- out_hi the stars and the window flicker. chaos scrambles windows and
--- multiplies the beams, kickless lets cloud drift over the moon.
+-- clap flare the lamp and its pool; closed hats run glints along the chrome
+-- trim, open hats drop a fat drip into a puddle, and a roll sends a train of
+-- glints; the cowbell blinks the taillights; ticks buzz the lamp; break
+-- slices drip into the puddles; a fill sweeps a passing car's headlights
+-- across the wall. behind the wall the towers' windows change bar by bar and
+-- low cloud drifts, lit from below by the city; the rain thickens through
+-- the phrase. out_amp is the lamp's strength and the cloud's glow, out_lo
+-- the car's bounce, plate and puddles, out_mid the glow in the rear window,
+-- the taillights and the towers' windows, out_hi the drizzle and the chrome.
+-- energy brightens the lamp and thickens the rain, chaos doubles the car and
+-- slants the rain, kickless stretches idle the car (exhaust curling up) and
+-- let fog in.
+-- view 2: closed hats light a window, open hats a run of three, rolls race
+-- along a floor; the 808 raises a haze glow over the skyline (out_lo holds
+-- it up); snares and claps flick the searchlight across the sky; the cowbell
+-- blinks the mast beacon; more windows come on through the phrase and a
+-- plane's lights cross on each bar. out_amp lights the moon and the city,
+-- out_mid the near towers' edges, out_hi the stars and the window flicker.
+-- chaos scrambles windows and multiplies the beams, kickless lets cloud
+-- drift over the moon.
+-- view 3: the 808 swells the blurred lights and swings the mirror; snares
+-- and claps sweep the wipers across, clearing the drops; closed hats bead
+-- new drops on the glass, open hats send one running down, rolls a whole
+-- trail of them; the cowbell blinks the hazard light on the dash, ticks the
+-- indicator; toms and syntoms pump the headunit's bars; a fill floods the
+-- glass with a passing car's headlights. the traffic light ahead holds red
+-- through the phrase, turns amber near its end and green as the next
+-- begins. out_lo swells the lights' rings, out_mid lights the headunit and
+-- the dials, out_hi glints the drops, out_amp brightens the city. chaos
+-- doubles the rings and scatters drops, kickless stretches mist the glass.
 return function(K)
   local M = {}
   local put, line, A, clamp = K.put, K.line, K.A, K.clamp
@@ -36,6 +53,9 @@ return function(K)
   -- view 2
   local runs, beams, haze, hs, beacon, swing
   local NB = 9                                   -- near buildings
+  local bars, plane, fat
+  -- view 3
+  local beads, runsd, wipe, wdir, mirror, mv, haz3, ind, eq, flood
 
   function M.init()
     flare, buzz, sub, tail, sweep = 0, 0, 0, 0, -1
@@ -43,6 +63,10 @@ return function(K)
     glints, rings, drips, puffs = {}, {}, {}, {}
     runs, beams = {}, {{a = -0.5, va = 0, lv = 0, b = 2}, {a = 0.4, va = 0, lv = 0, b = 7}}
     haze, hs, beacon, swing = 0, 0, 0, 0
+    bars, plane, fat = 0, -1, {}
+    beads, runsd = {}, {}
+    wipe, wdir, mirror, mv, haz3, ind, flood = 9, 1, 0, 0, 0, 0, -1
+    eq = {0, 0, 0, 0, 0, 0, 0, 0}
   end
   M.clear = M.init
 
@@ -63,8 +87,23 @@ return function(K)
     runs[#runs + 1] = {b = b, row = floor(K.rnd() * 6), t0 = K.T, lv = lv, sp = fast and 60 or 30, n = n or 1}
   end
 
+  local function bead(x, y, lv)
+    if #beads >= 34 then table.remove(beads, 1) end
+    beads[#beads + 1] = {x = x or (6 + K.rnd() * 116), y = y or (6 + K.rnd() * 38), lv = lv or 1, t0 = K.T}
+  end
+  local function trickle(v, x)
+    if #runsd >= 8 then table.remove(runsd, 1) end
+    runsd[#runsd + 1] = {x = x or (8 + K.rnd() * 112), y0 = 4 + K.rnd() * 18, t0 = K.T, v = v, sp = 14 + K.rnd() * 10}
+  end
+  local function bump(i, v)
+    i = clamp(floor(i), 1, 8)
+    eq[i] = max(eq[i], v)
+  end
+
   function M.kick(v)
     v = K.num(v, 1)
+    mv = mv + (K.rnd() < 0.5 and -1 or 1) * 2.5 * v
+    bump(1, v); bump(2, 0.8 * v)
     sub = max(sub, 0.6 + 0.4 * v)
     for p = 1, 3 do ring(p, 3 + 4 * v) end
     haze = min(1.3, haze + 0.6 * v)
@@ -73,6 +112,8 @@ return function(K)
   function M.snare(v, n)
     v = K.num(v, 1)
     flare = max(flare, 0.6 + 0.4 * v)
+    if wipe > 1 then wipe, wdir = 0, -wdir end
+    bump(4, 0.8 * v); bump(5, 0.6 * v)
     for _, b in ipairs(beams) do
       b.va = b.va + (K.rnd() < 0.5 and -1 or 1) * (2.5 + 2 * v)
       b.lv = max(b.lv, 0.7 + 0.3 * v)
@@ -83,8 +124,15 @@ return function(K)
 
   function M.hat(v, open)
     v = K.num(v, 1)
-    glint(K.T, open and 50 or 80, 4 + 6 * v)
+    glint(K.T, open and 45 or 80, 4 + 6 * v)
     run(3 + 6 * v, open and 3 or 1, false)
+    if open then
+      if #fat < 3 then fat[#fat + 1] = {p = 1 + floor(K.rnd() * 3), t0 = K.T, v = v} end
+      trickle(v)
+    else
+      bead(nil, nil, 0.5 + v)
+    end
+    bump(7, 0.5 * v); bump(8, (open and 0.8 or 0.5) * v)
   end
   function M.rim(v) M.hat(K.num(v, 1) * 0.7, false) end
   function M.ride(v) M.hat(K.num(v, 1) * 0.6, true) end
@@ -93,6 +141,10 @@ return function(K)
   function M.ratchet(n, voice)
     n = clamp(floor(K.num(n, 2)), 1, 12)
     for k = 0, n - 1 do glint(K.T - k * 0.05, 90, 9 - k * 0.4) end
+    local x = 10 + K.rnd() * 100
+    for k = 0, min(n, 6) - 1 do bead(x + k * 3, 8 + K.rnd() * 30, 1.5) end
+    trickle(1, x)
+    for i = 1, 8 do bump(i, 0.5 + 0.06 * n) end
     run(9, n, true)
     run(7, n, true)
     for p = 1, 3 do ring(p, 4) end
@@ -103,18 +155,21 @@ return function(K)
     if kind == 3 then
       tail = max(tail, 0.8 + 0.2 * v)
       beacon = 1
+      haz3 = 1
     elseif kind == 14 or kind == 17 or kind == 13 then
       sub = max(sub, 0.5 * v)
       haze = min(1.3, haze + 0.3 * v)
+      bump(2 + floor(K.rnd() * 4), 0.7 + 0.3 * v)
     else
       tail = max(tail, 0.4 * v)
+      bump(5 + floor(K.rnd() * 3), 0.6 * v)
       run(2 + 5 * v, 2, false)
       ring(1 + floor(K.rnd() * 3), 2 + 3 * v)
     end
   end
   function M.tom(v) M.perc(17, K.num(v, 1)) end
 
-  function M.tick() buzz = max(buzz, 0.6) end
+  function M.tick() buzz = max(buzz, 0.6); ind = 1 end
 
   function M.brk(s, n)
     s = K.num(s, 1)
@@ -122,8 +177,20 @@ return function(K)
     if s % 2 == 1 then run(4, 1, true) end
   end
 
+  function M.bar()
+    bars = bars + 1
+    if plane < 0 then plane = 0 end
+  end
+
+  local function phrase()
+    local S = K.S or {}
+    local len = max(1, K.num(S.phrase_len, 16))
+    return clamp(K.num(S.phrase_pos, 0) / len + K.bar_ph / len, 0, 1)
+  end
+
   function M.fill()
     sweep = 0
+    flood = 0
     for _, b in ipairs(beams) do b.lv = 1; b.va = b.va + 3 end
     beacon = 1
   end
@@ -210,6 +277,28 @@ return function(K)
     -- sodium buzz: a little uneven, never a strobe
     lamp = lamp * (1 - buzz * 0.25 * (0.5 + 0.5 * sin(T * 37))) * (1 - c * 0.12 * (0.5 + 0.5 * sin(T * 13.7)))
 
+    -- beyond the wall: low cloud lit from below by the city, two tower
+    -- blocks whose windows change bar by bar, a plane's light crossing
+    local ph = phrase()
+    K.haze(0, 1, 128, 14, 0.18 + amp * 0.18 + e * 0.06, 1, T * 2.5)
+    for t = 0, 1 do
+      local x0, x1, top = t == 0 and 58 or 98, t == 0 and 74 or 110, t == 0 and 14 or 19
+      local base = floor(K.at(WALL, (x0 + x1) / 2))
+      line(1 + amp * 0.6, x0, top, x0, base)
+      line(1 + amp * 0.6, x1, top, x1, base)
+      line(1 + amp * 0.6, x0, top, x1, top)
+      for wy = top + 2, base - 2, 3 do
+        for wx = x0 + 2, x1 - 2, 3 do
+          local h = K.hash(wx * 7 + wy * 131, bars + t * 5)
+          if h < 0.3 + ph * 0.2 then put(1 + mid * 2.5 * h * 3, wx, wy, 1, 1) end
+        end
+      end
+    end
+    if plane >= 0 then
+      local px = -4 + plane * 140
+      put(1.5 + 4 * max(0, sin(T * 9)), px, 6 + plane * 4, 1, 1)
+      put(1.5, px - 2, 6 + plane * 4, 1, 1)
+    end
     -- the wall behind the lot: panel seams, a few lit windows, the passing
     -- car's headlight sweep on a fill
     for x = 2, 126, 8 do
@@ -270,6 +359,20 @@ return function(K)
         K.ring(R.lv * (1 - u) + lo, R.x, R.y, 1 + age * 14, 12, 0, K.TAU, 0.25)
       end
     end
+    for i = #fat, 1, -1 do
+      local F = fat[i]
+      local age = T - F.t0
+      local P = PUD[F.p]
+      if age > 0.8 then table.remove(fat, i)
+      elseif age < 0.18 then
+        local y = P.y - 16 + age / 0.18 * 16
+        line(4 + 6 * F.v, P.x - 3, y - 3, P.x - 3, y)
+      else
+        local u = (age - 0.18) / 0.62
+        K.ring((3 + 6 * F.v) * (1 - u), P.x - 3, P.y, 2 + u * P.w * 0.8, 14, 0, K.TAU, 0.25)
+        K.ring((2 + 3 * F.v) * (1 - u), P.x - 3, P.y, 1 + u * P.w * 0.4, 10, 0, K.TAU, 0.25)
+      end
+    end
     for i = #drips, 1, -1 do
       local D = drips[i]
       local age = T - D.t0
@@ -300,7 +403,7 @@ return function(K)
     put(min(12, 5 + lamp * 7), LX - 4, LY, 9, 2)
     K.ring(1 + lamp * 2, LX, LY + 1, 6 + lamp * 3, 12, 0, PI)
     local slant = c * 3 + 1
-    local nr = floor(8 + e * 6 + hi * 16)
+    local nr = floor(8 + e * 6 + hi * 16 + ph * 8)
     for i = 0, nr - 1 do
       local spd = 40 + K.hash(i, 1) * 20
       local yy = (K.hash(i, 2) * 50 + T * spd) % 46 + LY + 3
@@ -419,7 +522,7 @@ return function(K)
           local wx = x0 + 2 + col * 3
           local h = K.hash(i * 97 + row * 13 + col, 41)
           local l = 0
-          if h < 0.35 + e * 0.15 then
+          if h < 0.3 + e * 0.15 + phrase() * 0.12 then
             l = 1 + h * 2 + amp * 0.8 + hi * 2.5 * (0.5 + 0.5 * sin(T * 3 + h * 40))
           end
           if c > 0.4 and K.hash(i * 97 + row * 13 + col + floor(T * 4), 43) < c * 0.12 then l = l + 2.5 end
@@ -449,21 +552,198 @@ return function(K)
         end
       end
     end
+    -- a plane crossing on the bar
+    if plane >= 0 then
+      local px = -4 + plane * 140
+      put(1.5 + 4 * max(0, sin(T * 9)), px, 4 + plane * 5, 1, 1)
+      put(1.5 + hi, px - 2, 4 + plane * 5, 1, 1)
+    end
     -- the rooftop we stand on: a rail and its posts
     line(1.5 + amp * 0.5, 0, 58, 127, 58)
     for x = 3, 127, 9 do line(1.5 + mid, x, 58, x, 63) end
     K.grain(function(u, v) return u * 128, v * 30 end, 2 + hi * 12, 3 + hi * 5)
   end
 
+
+  ---------------------------------------------------------------- view 3
+  local DY3 = 46                                 -- the dash's top edge, middle
+  local function dash_y(x) return DY3 + ((x - 64) / 64) ^ 2 * 6 end
+  local BOK = {}
+  for i = 1, 18 do
+    BOK[i] = {x = K.hash(i, 91) * 150, y = 8 + K.hash(i, 92) * 28, r = 1.5 + K.hash(i, 93) ^ 2 * 5, l = K.hash(i, 94)}
+  end
+  local WP = {{x = 20, y = 50, len = 46}, {x = 68, y = 50, len = 44}}
+  local A_REST = -0.06
+  local tl3 = {0, 0, 0}                          -- the traffic light's lamps, eased
+  local creep, sb3 = 0, 0
+
+  local function wiper_a()
+    if wipe >= 1 then return A_REST end
+    return A_REST - (PI - 0.7) * sin(PI * wipe)
+  end
+
+  local function draw3(S)
+    local T, DT, e, c, kl = K.T, K.DT, K.energy, K.chaos, K.kickless
+    local lo, mid, hi, amp = A[K.LO], A[K.MID], A[K.HI], A[K.AMP]
+    local ph = phrase()
+    wipe = wipe + K.DTS / 0.6
+    mv = mv - mirror * 60 * DT - mv * 5 * DT
+    mirror = clamp(mirror + mv * DT, -4, 4)
+    haz3 = haz3 * math.exp(-DT / 0.35)
+    ind = ind * math.exp(-DT / 0.25)
+    for i = 1, 8 do eq[i] = eq[i] * math.exp(-DT / 0.18) end
+    sb3 = K.follow(sb3, sub, 0.2, DT)
+    creep = creep + K.DTS * (0.6 + e * 1.2) * (1 - kl * 0.7)
+
+    -- the city through the wet glass: lights blurred into rings
+    for i, B in ipairs(BOK) do
+      local x = (B.x - creep * (2 + B.l * 3)) % 150 - 11
+      local r = B.r + lo * 1.2 + sb3 * 1.4
+      local l = (1 + B.l * 1.3 + amp * 1.1) * (1 - kl * 0.3)
+      if B.y + r < dash_y(x) then
+        if B.l > 0.45 then K.disc(1, x, B.y, r - 0.5) end
+        K.ring(l, x, B.y, r, 12)
+        if c > 0.4 then K.ring(l * 0.4, x + c * 5, B.y + 1, r, 10) end
+      end
+    end
+    -- the traffic light ahead: red through the phrase, amber at its end,
+    -- green as the next begins
+    local st = (ph > 0.97 or ph < 0.08) and 3 or (ph > 0.85 and 2 or 1)
+    for k = 1, 3 do tl3[k] = K.follow(tl3[k], st == k and 1 or 0, 0.15, DT) end
+    local tx, ty = 100, 7
+    line(1.5, tx - 3, ty - 2, tx - 3, ty + 14)
+    line(1.5, tx + 3, ty - 2, tx + 3, ty + 14)
+    line(1.2, tx, ty + 15, tx, 30)
+    for k = 1, 3 do
+      local ly = ty + (k - 1) * 5
+      local l = 1.2 + tl3[k] * (5 + amp * 2)
+      K.disc(l, tx, ly + 1, 1.6)
+      if tl3[k] > 0.1 then K.ring(tl3[k] * (2 + amp), tx, ly + 1, 4 + lo, 10) end
+    end
+    -- a fill: a passing car's lights flood across the glass
+    if flood >= 0 then
+      flood = flood + K.DTS / 1.3
+      if flood > 1 then flood = -1
+      else
+        local fx = -20 + flood * 170
+        local fl = sin(PI * flood)
+        K.disc(2 + fl * 4, fx, 30, 5)
+        K.disc(2 + fl * 4, fx + 18, 30, 5)
+        K.ring(1 + fl * 3, fx + 9, 30, 16, 16)
+      end
+    end
+    if kl > 0.1 then K.haze(14, 3, 114, 42, kl * 0.5, 1 + kl, T * 2) end
+
+    -- the glass: beads of rain, and drops running down
+    K.grain(function(u, v) return 14 + u * 100, 4 + v * 38 end, 1 + hi * 6, 3 + hi * 4)
+    local rate = (1.5 + e * 3 + kl * 4 + ph * 3) * K.DTS
+    if K.rnd() < rate then bead(nil, nil, 0.4 + K.rnd() * 0.6) end
+    local wa = wiper_a()
+    for i = #beads, 1, -1 do
+      local B = beads[i]
+      local wiped = false
+      if wipe < 1 then
+        for _, W in ipairs(WP) do
+          local dx, dy = B.x - W.x, B.y - W.y
+          local a = math.atan(dy, dx)
+          if dx * dx + dy * dy < W.len * W.len and a >= wa - 0.05 and a <= A_REST + 0.05 then wiped = true end
+        end
+      end
+      if wiped then table.remove(beads, i)
+      else
+        local x = B.x + (c > 0.4 and sin(T * 3 + i) * c * 1.5 or 0)
+        local age = T - B.t0
+        local l = 2 + B.lv * 2 + hi * 3 * (0.5 + 0.5 * sin(T * 2 + i * 1.7)) + max(0, 1 - age * 4) * 4
+        put(l, x, B.y, 1, 1)
+        if B.lv > 1 then put(l * 0.5, x, B.y + 1, 1, 1) end
+      end
+    end
+    for i = #runsd, 1, -1 do
+      local R = runsd[i]
+      local age = T - R.t0
+      local y = R.y0 + age * R.sp + age * age * 6
+      if y > dash_y(R.x) - 1 then table.remove(runsd, i)
+      else
+        local l = 3 + 6 * R.v
+        put(l, R.x, y, 1, 2)
+        line(l * 0.35, R.x, max(R.y0, y - 8), R.x, y - 1)
+      end
+    end
+
+    -- the windscreen's frame: the pillars, the roof, the mirror
+    line(2, 0, 40, 15, 0)
+    line(1.5, 3, 42, 18, 0)
+    line(2, 127, 40, 112, 0)
+    line(1.5, 124, 42, 109, 0)
+    line(1.2, 15, 0, 112, 0)
+    local mx = 64 + mirror
+    line(1.5, 64, 0, mx, 3)
+    put(1, mx - 12, 4, 24, 5)
+    line(1.5 + amp * 0.7, mx - 12, 3, mx + 12, 3)
+    line(1.5 + amp * 0.7, mx - 12, 9, mx + 12, 9)
+    line(2 + amp, mx - 13, 4, mx - 13, 8)
+    line(2 + amp, mx + 13, 4, mx + 13, 8)
+    line(1.5 + amp * 2 + fs, mx - 8, 6, mx + 8, 6)              -- the rear window in it
+
+    -- the wipers
+    for _, W in ipairs(WP) do
+      local ex, ey = W.x + cos(wa) * W.len, W.y + math.sin(wa) * W.len
+      line(1.5 + amp, W.x, W.y, ex, ey)
+      local px, py = -math.sin(wa), cos(wa)
+      line(2.5 + amp + (wipe < 1 and 1.5 or 0), W.x + px + cos(wa) * 8, W.y + py + math.sin(wa) * 8, ex + px, ey + py)
+    end
+
+    -- the dash: its edge, the dials, the headunit and its bars
+    local px, py
+    for k = 0, 16 do
+      local x = k * 8
+      local y = dash_y(x)
+      if px then line(1.5 + mid * 1.2, px, py, x, y) end
+      px, py = x, y
+    end
+    K.ring(1.5 + mid * 1.5, 28, 60, 13, 14, PI, K.TAU)
+    for d = 0, 1 do
+      local dx = d == 0 and 22 or 35
+      K.ring(1.5 + mid * 2.5, dx, 59, 4.5, 10)
+      local a = PI * 0.8 + (PI * 1.4) * clamp(d == 0 and (0.2 + amp * 0.7) or (0.3 + lo * 0.4 + e * 0.2), 0, 1)
+      line(3 + mid * 4, dx, 59, dx + cos(a) * 4, 59 + math.sin(a) * 4)
+    end
+    -- the indicator and the hazard triangle
+    put(1.2 + ind * 9, 43, 52, 2, 1)
+    line(1.2 + ind * 9, 41, 52, 43, 50)
+    line(1.2 + ind * 9, 41, 52, 43, 54)
+    local hl = 1.5 + haz3 * 9
+    line(hl, 64, 48, 61, 53)
+    line(hl, 64, 48, 67, 53)
+    line(hl, 61, 53, 67, 53)
+    -- the headunit: a screen, eight bars pumping with the hits and the bands
+    put(1, 50, 55, 28, 8)
+    line(1.5 + mid * 1.5, 50, 55, 77, 55)
+    line(1.5 + mid * 1.5, 50, 55, 50, 63)
+    line(1.5 + mid * 1.5, 77, 55, 77, 63)
+    local band = {lo, lo, mid, mid, mid, hi, hi, amp}
+    for i = 1, 8 do
+      local h = clamp(1 + eq[i] * 5 + band[i] * 2.5, 1, 7)
+      put(min(12, 3 + mid * 3 + eq[i] * 4), 51 + (i - 1) * 3, 63 - h, 2, h)
+    end
+    -- the steering wheel
+    K.ring(2 + amp, 28, 82, 28, 16, PI * 1.18, PI * 1.82)
+    K.ring(1.5, 28, 82, 24, 14, PI * 1.2, PI * 1.8)
+  end
+
   function M.draw(S)
     local DT = K.DT
+    if plane >= 0 then
+      plane = plane + K.DTS / 7
+      if plane > 1 then plane = -1 end
+    end
     flare = flare * math.exp(-DT / 0.22)
     buzz = buzz * math.exp(-DT / 0.25)
     sub = sub * math.exp(-DT / 0.6)                -- the 808 rings long
     tail = tail * math.exp(-DT / 0.25)
     fs = K.follow(fs, flare, 0.05, DT)
     ss = K.follow(ss, sub, 0.04, DT)
-    if K.view == 2 then draw2(S) else draw1(S) end
+    if K.view == 2 then draw2(S) elseif K.view == 3 then draw3(S) else draw1(S) end
   end
 
   M.init()

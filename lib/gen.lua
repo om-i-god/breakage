@@ -39,13 +39,22 @@
 --   trap     a long 808, the snare on 3, 8th hats with fast rolls
 --   disco    four, snare 2 and 4, open hats on the offbeats, tambourine
 --   motorik  a steady krautrock beat, straight 8ths, syntoms into the bar
+--   trance   four, clap 2 and 4, open hats on every offbeat, 16th hats
+--   hardstyle four with a distorted kick, offbeat hats, a sparse clap
+--   amapiano shuffling 16th shakers, a sparse kick, the log drum's bassline
+--   gqom     broken booming kicks and toms, no backbeat to lean on
+--   baile    the tamborzao: 3+3+2 kicks under a tuned hand drum
+--   jersey   triplet-ish kick runs into the bar, bed squeaks on top
+--   phonk    a half-time 808, snare on 3, a cowbell melody in 16ths
+--   synthwave a straight rock beat, a big gated snare, 8th hats
 
 local G = {}
 
 G.FAMILIES = {"four", "dub", "acid", "electro", "broken", "brk", "jungle", "half", "rave",
   "bossa", "rhumba", "chacha", "samba", "beguine", "rock",
   "minimal", "halfstep", "breakcore", "glitch", "march", "boombap", "tribal", "garage",
-  "footwork", "trap", "disco", "motorik"}
+  "footwork", "trap", "disco", "motorik",
+  "trance", "hardstyle", "amapiano", "gqom", "baile", "jersey", "phonk", "synthwave"}
 
 local function clamp(v, lo, hi) return math.max(lo, math.min(hi, v)) end
 local function chance(p) return math.random() < p end
@@ -172,7 +181,8 @@ end
 
 -- the presets' percussion: {step = {role, vel}}; roles map to perc kinds
 local ROLE = {conga = 1, bongo = 2, cowbell = 3, clave = 4, log = 7, guiro = 9, tamb = 10,
-  musicbox = 11, squeak = 12, talk = 13, crackle = 15, vox = 16, syntom = 17}
+  musicbox = 11, squeak = 12, talk = 13, crackle = 15, vox = 16, syntom = 17,
+  logdrum = 18, bed = 19, tambor = 20, bell = 21}
 local function lane(t)
   local p = {}
   for role, steps in pairs(t) do
@@ -334,10 +344,75 @@ SKEL.motorik = function(c)
   return k, s, h, lane({syntom = {{15, 0.6}, {16, 0.7}}})
 end
 
+SKEL.trance = function(c)
+  local k = set(zeros(), {1, 5, 9, 13}, 1)
+  local s = set(zeros(), {5, 13}, 0.9)
+  local h = zeros()
+  for i = 1, 16 do h[i] = (i % 2 == 0) and 0.35 or 0.25 end
+  return k, s, h, nil, {open = {3, 7, 11, 15}}
+end
+
+SKEL.hardstyle = function(c)
+  local k = set(zeros(), G.pick({{1, 5, 9, 13}, {1, 5, 9, 13, 16}, {1, 5, 9, 13}}), 1)
+  local s = set(zeros(), G.pick({{13}, {5, 13}}), 0.8)
+  local h = set(zeros(), {3, 7, 11, 15}, 0.7)
+  return k, s, h, nil, {open = {3, 7, 11, 15}}
+end
+
+SKEL.amapiano = function(c)
+  local k = set(zeros(), G.pick({{1, 9}, {1, 5, 9, 13}, {1, 9, 11}}), 0.9)
+  local s = set(zeros(), {5, 13}, 0.7)
+  local h = zeros()
+  for i = 1, 16 do h[i] = (i % 4 == 3) and 0.55 or 0.3 end
+  local logs = G.pick({{4, 7, 8, 12, 15}, {3, 7, 11, 14, 16}, {4, 8, 11, 15}})
+  local t = {}
+  for _, st in ipairs(logs) do t[#t + 1] = {st, 0.75} end
+  return k, s, h, lane({logdrum = t, clave = {{6, 0.5}, {14, 0.5}}})
+end
+
+SKEL.gqom = function(c)
+  local k = set(zeros(), G.pick({{1, 4, 7, 12}, {1, 7, 11}, {1, 4, 10, 12, 15}, {2, 7, 10, 13}}), 1)
+  local s = zeros()
+  local h = set(zeros(), {3, 7, 11, 15}, 0.35)
+  return k, s, h, lane({syntom = {{G.pick({6, 9}), 0.8}, {14, 0.7}}, tambor = {{3, 0.6}, {11, 0.6}}})
+end
+
+SKEL.baile = function(c)
+  local k = set(zeros(), G.pick({{1, 4, 7, 11, 14}, {1, 4, 7, 9, 11, 14}, {1, 4, 7, 11}}), 1)
+  local s = set(zeros(), G.pick({{5, 13}, {4, 7, 12, 15}}), 0.8)
+  local h = set(zeros(), {1, 3, 5, 7, 9, 11, 13, 15}, 0.4)
+  return k, s, h, lane({tambor = {{2, 0.6}, {4, 0.8}, {8, 0.7}, {10, 0.6}, {12, 0.8}, {16, 0.7}}})
+end
+
+SKEL.jersey = function(c)
+  local k = set(zeros(), G.pick({{1, 4, 7, 11, 13, 14, 15}, {1, 4, 7, 9, 11, 13, 15}, {1, 7, 9, 11, 13, 15}}), 1)
+  local s = set(zeros(), {5, 13}, 0.9)
+  local h = set(zeros(), {3, 7, 11, 15}, 0.5)
+  return k, s, h, lane({bed = {{G.pick({2, 6}), 0.7}, {10, 0.7}, {G.pick({12, 16}), 0.6}}})
+end
+
+SKEL.phonk = function(c)
+  local k = set(zeros(), G.pick({{1, 11}, {1, 4, 11}, {1, 8, 11, 15}}), 1)
+  local s = set(zeros(), {9}, 1)
+  local h = set(zeros(), {1, 3, 5, 7, 9, 11, 13, 15}, 0.55)
+  local t = {}
+  for _, st in ipairs(G.pick({{1, 4, 7, 10, 13, 15}, {1, 3, 4, 7, 9, 12, 15}, {2, 4, 7, 10, 12, 15}})) do
+    t[#t + 1] = {st, 0.7}
+  end
+  return k, s, h, lane({bell = t})
+end
+
+SKEL.synthwave = function(c)
+  local k = set(zeros(), G.pick({{1, 9}, {1, 9, 11}, {1, 4, 9}}), 1)
+  local s = set(zeros(), {5, 13}, 1)
+  local h = set(zeros(), {1, 3, 5, 7, 9, 11, 13, 15}, 0.5)
+  return k, s, h, lane({syntom = {{G.pick({14, 15}), 0.6}, {16, 0.7}}})
+end
+
 local PRESET = {bossa = true, rhumba = true, chacha = true, samba = true, beguine = true, rock = true}
 -- families that keep a straight kick: no ghost kicks, no displacement
 local STRAIGHT = {four = true, acid = true, rave = true, minimal = true, disco = true, motorik = true,
-  march = true, trap = true}
+  march = true, trap = true, trance = true, hardstyle = true, synthwave = true}
 
 ------------------------------------------------------------------------
 -- the phrase's material

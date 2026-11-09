@@ -5,11 +5,13 @@
 -- E1-E3: the current page
 --   play: energy / chaos / dub
 --   sound: kick tune / decay / snare
+--   punch: kick drive / punch / snare tone
 --   voices: kick / snare / hat model
 --   groove: groove / perc / ticks
 --   time: meter / 5/4 / 7/8 grouping
 --   melodic: voice / control / value
 --   space: swing / reverb / crush
+--   look: mirror / trails / kick zoom
 --   break: level / pitch / beats
 -- K2 tap: drop (kick + hats out)
 -- K3 tap: fill now
@@ -23,7 +25,7 @@
 -- on the same channel + ccs, and
 -- breakage follows its arc
 --
--- v0.3
+-- v0.4
 
 engine.name = "Breakage"
 
@@ -111,17 +113,19 @@ local function meter_label(m, g)
   return METERS[m].name .. (l ~= "" and (" " .. l) or "")
 end
 -- per perc kind: midi base (fixed-pitch kinds 3, 4, 9, 10, 15 use PERC_FIXED), decay
-local PERC_BASE      = {50, 62, 0, 0, 36, 69, 57, 72, 0, 0, 84, 76, 50, 36, 0, 57, 50}
+local PERC_BASE      = {50, 62, 0, 0, 36, 69, 57, 72, 0, 0, 84, 76, 50, 36, 0, 57, 50, 33, 76, 45, 72}
 local PERC_FIXED     = {[3] = 800, [4] = 2500, [9] = 2800, [10] = 6000, [15] = 80}
-local PERC_DECAY     = {0.18, 0.18, 0.18, 0.18, 0, 0.4, 0.25, 0.45, 0.13, 0.2, 0.5, 0.25, 0.4, 0.35, 0.3, 0.22, 0.35}
+local PERC_DECAY     = {0.18, 0.18, 0.18, 0.18, 0, 0.4, 0.25, 0.45, 0.13, 0.2, 0.5, 0.25, 0.4, 0.35, 0.3, 0.22, 0.35,
+  0.45, 0.15, 0.25, 0.3}
 -- SOUND > ... model: "kit" or a voice model that replaces the kit's own
 local KICK_MODELS  = {"kit", "sub", "909", "808", "knock", "gabber", "rave", "acoustic", "metal", "minipops",
-  "dubstep", "click", "toy", "dusty", "tribal", "808 long", "simmons"}
+  "dubstep", "click", "toy", "dusty", "tribal", "808 long", "simmons", "hardstyle", "trance", "gqom"}
 local SNARE_MODELS = {"kit", "909", "drill", "808", "noise", "acoustic", "jungle", "metal", "minipops",
-  "dubstep", "click", "toy", "dusty", "frame", "disco", "simmons"}
-local HAT_MODELS   = {"kit", "analog", "metallic", "crisp", "acoustic", "lofi", "minipops", "dusty", "click", "disco"}
+  "dubstep", "click", "toy", "dusty", "frame", "disco", "simmons", "gated", "miami"}
+local HAT_MODELS   = {"kit", "analog", "metallic", "crisp", "acoustic", "lofi", "minipops", "dusty", "click", "disco", "shaker"}
 local PERC_MODELS  = {"kit", "conga", "bongo", "cowbell", "clave", "acid", "metal", "log", "plink",
-  "guiro", "tambourine", "music box", "squeak", "talking drum", "wobble", "crackle", "vox", "syntom"}
+  "guiro", "tambourine", "music box", "squeak", "talking drum", "wobble", "crackle", "vox", "syntom",
+  "log drum", "bed squeak", "tamborzao", "phonk bell"}
 local TICK_MODELS  = {"kit", "click", "blip", "crush", "ring", "chirp", "zap", "error", "pop"}
 
 ------------------------------------------------------------------------
@@ -247,7 +251,9 @@ end
 local function kick(vel, bend)
   local k = kit().kick
   local tune = to_key(k[2]) + params:get("kick_tune")
-  engine.kick(0.85 * vel, tune, k[3] * params:get("kick_decay") / 100, k[4], bend or 1, model("kick_model", k[1]))
+  local drv = clamp(k[4] + params:get("kick_drive") / 100, 0, 1)
+  engine.kick(0.85 * vel, tune, k[3] * params:get("kick_decay") / 100, drv,
+    (bend or 1) * params:get("kick_punch") / 100, model("kick_model", k[1]))
   VIS.event("kick", vel)
 end
 
@@ -257,7 +263,8 @@ local function snare(vel, up, rn, rim)
     engine.rim(0.7 * vel, to_key(k[2] + 22, 7) + params:get("snare_tune") + (up or 0), (math.random() - 0.5) * 0.4)
     VIS.event("rim", vel)
   else
-    engine.snare(0.8 * vel, to_key(k[2], 7) + params:get("snare_tune") + (up or 0), k[3] * params:get("snare_decay") / 100, k[4],
+    engine.snare(0.8 * vel, to_key(k[2], 7) + params:get("snare_tune") + (up or 0), k[3] * params:get("snare_decay") / 100,
+      clamp(k[4] + params:get("snare_tone") / 100, 0, 1),
       (math.random() - 0.5) * 0.3, (S.chaos > 0.6 and chance(0.3)) and G.pick({-2, 3, 5}) or 0,
       model("snare_model", k[1]))
     VIS.event("snare", vel, rn or 1)
@@ -265,7 +272,7 @@ local function snare(vel, up, rn, rim)
 end
 
 local function clap(vel)
-  engine.clap(0.75 * vel, 0.3, 0.5, (math.random() - 0.5) * 0.3)
+  engine.clap(0.75 * vel, 0.3 * params:get("clap_decay") / 100, params:get("clap_tone") / 100, (math.random() - 0.5) * 0.3)
   VIS.event("clap", vel)
 end
 
@@ -283,10 +290,13 @@ local MEL = {
   {"tom", "tom"}, {"conga", "conga"}, {"bongo", "bongo"}, {"cowbell", "cowbell"}, {"clave", "clave"},
   {"acid", "acid"}, {"metal", "metal pipe"}, {"log", "log"}, {"plink", "plink"}, {"guiro", "guiro"},
   {"tamb", "tambourine"}, {"musicbox", "music box"}, {"squeak", "squeak"}, {"talk", "talking drum"},
-  {"wobble", "wobble"}, {"crackle", "crackle"}, {"vox", "vox"}, {"syntom", "syntom"}, {"ticks", "glitch ticks"},
+  {"wobble", "wobble"}, {"crackle", "crackle"}, {"vox", "vox"}, {"syntom", "syntom"},
+  {"logdrum", "log drum"}, {"bed", "bed squeak"}, {"tambor", "tamborzao"}, {"bell", "phonk bell"},
+  {"ticks", "glitch ticks"},
 }
 local PERC_KEY = {"conga", "bongo", "cowbell", "clave", "acid", "metal", "log", "plink", "guiro", "tamb",
-  "musicbox", "squeak", "talk", "wobble", "crackle", "vox", "syntom"}
+  "musicbox", "squeak", "talk", "wobble", "crackle", "vox", "syntom",
+  "log drum", "bed squeak", "tamborzao", "phonk bell"}
 local MEL_CTL = {{"lvl", "level"}, {"tone", "tone"}, {"dec", "decay"}, {"oct", "octave"}}
 local function mel(key, ctl, d)
   local ok, v = pcall(params.get, params, "mel_" .. key .. "_" .. ctl)
@@ -383,6 +393,23 @@ local function apply_bar()
 end
 
 -- a kit's own feel: dub, swing and drive move to the kit's home on a change
+-- VISUALS > theme: the cycling modes move the picture on by themselves
+local function theme_cycle()
+  local m = params:get("theme_mode")
+  if m < 3 then return end
+  local n = #VIS.names
+  local bar = S.bar or 0
+  if m == 3 then
+    if bar > 0 and bar % 8 == 0 then theme = theme % n + 1 end
+  elseif (S.phrase_pos or 1) == 0 and bar > 0 then
+    if m == 4 then theme = theme % n + 1
+    else
+      local t = math.random(n - 1)
+      theme = t >= theme and t + 1 or t
+    end
+  end
+end
+
 local function kit_feel()
   if params:get("kit_mix") ~= 2 then return end
   local kt = kit()
@@ -527,6 +554,7 @@ local function play_step()
       flash("kit " .. kit().name)
     end
     apply_bar()
+    theme_cycle()
     VIS.event("bar", S)
     if S.fill then VIS.event("fill", S.fill.kind) end
     if r == "stop" then stop(true); return end
@@ -877,11 +905,13 @@ local PART_LVL = {kick = "kick_lvl", snare = "snare_lvl", clap = "clap_lvl", hat
 local PAGES = {
   {name = "play",  {"_energy", 1}, {"chaos", 1},      {"dub", 1}},
   {name = "sound", {"kick_tune", 1}, {"kick_decay", 1}, {"snare_tune", 1}},
+  {name = "punch", {"kick_drive", 1}, {"kick_punch", 1}, {"snare_tone", 1}},
   {name = "voices", {"kick_model", 1}, {"snare_model", 1}, {"hat_model", 1}},
   {name = "groove", {"groove", 1}, {"perc_model", 1}, {"tick_model", 1}},
   {name = "time", {"meter", 1}, {"group54", 1}, {"group78", 1}},
   {name = "melodic"},
   {name = "space", {"swing", 1},   {"verb_send", 1},  {"crush_amt", 1}},
+  {name = "look", {"vis_mirror", 1}, {"vis_trails", 1}, {"vis_zoom", 1}},
   {name = "break", {"break_lvl", 1}, {"brk_pitch", 1}, {"brk_beats", 1}},
   {name = "parts", {"_energy", 1}},
 }
@@ -939,7 +969,7 @@ function enc(n, d)
       page = clamp(page + d, 1, #PAGES)
       flash("page " .. PAGES[page].name)
     elseif n == 3 then
-      params:set("vis_view", d > 0 and 2 or 1)
+      params:set("vis_view", clamp(params:get("vis_view") + (d > 0 and 1 or -1), 1, 3))
       flash("view " .. params:string("vis_view"))
     end
   elseif k2 then
@@ -1256,7 +1286,12 @@ local function setup_params()
   params:add_separator("SOUND")
   params:add_number("kick_tune", "kick tune", -12, 12, 0)
   params:add_number("kick_decay", "kick decay %", 25, 250, 100)
+  params:add_number("kick_drive", "kick drive", -100, 100, 0)
+  params:add_number("kick_punch", "kick punch %", 0, 300, 100)
   params:add_number("snare_tune", "snare tune", -12, 12, 0)
+  params:add_number("snare_tone", "snare tone", -50, 50, 0)
+  params:add_number("clap_tone", "clap tone", 0, 100, 50)
+  params:add_number("clap_decay", "clap decay %", 25, 300, 100)
   params:add_number("hat_tone", "hat tone %", 40, 160, 100)
   params:add_option("root", "key", NOTE_NAMES, 10)
   params:set_action("root", function(v) S.root_pc = v - 1 end)
@@ -1283,14 +1318,20 @@ local function setup_params()
   end
 
   params:add_separator("VISUALS")
-  params:add_option("theme_mode", "theme", {"follows the kit", "fixed"}, 1)
-  params:set_action("theme_mode", function(v) if v == 1 then theme = S.kit end end)
+  params:add_option("theme_mode", "theme", {"follows the kit", "fixed", "cycles (8 bars)", "cycles (phrase)", "random (phrase)"}, 1)
+  params:set_action("theme_mode", function(v)
+    if v == 1 then theme = S.kit elseif v == 2 then theme = params:get("theme") end
+  end)
   params:add_option("theme", "fixed theme", VIS.names, 1)
   params:set_action("theme", function(v) if params:get("theme_mode") == 2 then theme = v end end)
   params:add_option("hud", "overlay", {"full", "minimal", "off"}, 1)
   params:add_number("vis_speed", "speed", 1, 10, 3)
   params:add_number("vis_brightness", "brightness", 1, 15, 10)
-  params:add_option("vis_view", "view", {"one", "two"}, 1)
+  params:add_option("vis_view", "view", {"one", "two", "three"}, 1)
+  params:add_option("vis_mirror", "mirror", {"off", "left | right", "top / bottom", "quad"}, 1)
+  params:add_number("vis_trails", "trails", 0, 10, 0)
+  params:add_option("vis_zoom", "kick zoom", {"off", "soft", "hard"}, 1)
+  params:add_option("vis_contrast", "contrast", {"soft", "normal", "hard"}, 2)
   params:add_option("vis_shake", "kick shake", {"off", "soft", "hard"}, 1)
   params:add_number("vis_react", "audio reactivity", 0, 10, 5)
 end

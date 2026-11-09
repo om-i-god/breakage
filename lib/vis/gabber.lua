@@ -1,5 +1,7 @@
 -- gabber. view 1: a press shop on the night shift, two massive presses slamming on the kick beside a redlining gauge.
 -- view 2: an extreme close-up of a speaker cone pumping, its waveform clipping square on the kick inside a distortion halo.
+-- view 3: the hakken floor: a wall of bass bins behind a crowd stomping the
+-- 16ths, lamps on the truss above, smoke, lasers when a ratchet fires.
 --
 -- view 1: the rams drop onto their dies on the kick (in turn; both at once
 -- when the energy is up) and climb back over the beat; each blow throws a
@@ -11,18 +13,29 @@
 -- red at the top, lighting the warning lamp; the crane hook behind sways.
 -- chaos knocks the presses out of step, ghosts the rams, cracks the floor
 -- and shakes the needle. kickless: the rams park up, steam hisses steadily
--- and the gauge sags.
+-- and the gauge sags. a stamped plate goes on the stack by the line each
+-- bar, the stack cleared at the end of the phrase.
 -- view 2: the kick throws the cone out at us (the inner rings swell more
 -- than the outer), squares off the trace and flares the halo; snares fuzz
 -- the trace and the cone's ribs; ring-mod ticks tremble it; a ratchet
 -- winds the trace's pitch up and buzzes the cone. energy drives it harder
 -- (more excursion, more clip, a thicker halo); chaos splits the trace,
--- tears the ribs and multiplies the halo; kickless, it just breathes.
+-- tears the ribs and multiplies the halo; kickless, it just breathes. a
+-- bead goes round the surround over the phrase and flashes on each bar.
+-- view 3: the kick throws every cone and pumps the crowd's arms; noise
+-- snares fizz across the wall; ring-mod ticks arc between two bins; a
+-- closed hat blips one lamp, an open hat flares a pair; a ratchet fans
+-- lasers from the truss, a fill throws the whole crowd in the air. the
+-- truss LEDs fill over the phrase. energy packs the floor and quickens the
+-- lamps, chaos jolts the bins and the crowd, kickless leaves them swaying
+-- arms up in thick smoke.
 --
 -- the ears: view 1, the lows rumble the checker plate and glow the die pits,
 -- the mids ring the rams, the plates and the column rivets, the highs light
 -- the windows and the roof haze; view 2, the lows hold the cone out, the
--- mids light its middle zone and ribs, the highs glitter the grille.
+-- mids light its middle zone and ribs, the highs glitter the grille; view
+-- 3, the lows glow the cones, the mids the beams, the smoke and the crowd,
+-- the highs the bolts and lamp lenses, the level the bins and the truss.
 return function(K)
   local M = {}
   local put, line, A, clamp = K.put, K.line, K.A, K.clamp
@@ -45,6 +58,8 @@ return function(K)
   local hit_t, ham, turn, sparks, puffs, arcs, dust, cracks
   local gauge, gvel, jolt, plate, lamp, hook, hookv, fired, fly
   local cone, cone_v, drive, fuzz, trem, pitch, phase, buzz, halo
+  -- view 3
+  local bars, blk, jump, pump, lamps3, lasers, noise3, zaps3, sweep, stomp
 
   function M.init()
     hit_t, ham, turn = {-9, -9}, {}, 0
@@ -52,6 +67,13 @@ return function(K)
     gauge, gvel, jolt, plate, lamp, hook, hookv = 0.1, 0, 0, {0, 0}, 0, 0.3, 0
     fired, fly = {}, {0, 1, 0, 0}
     cone, cone_v, drive, fuzz, trem, pitch, phase, buzz, halo = 0, 0, 0, 0, 0, 1, 0, 0, 0
+  end
+  local init1 = M.init
+  function M.init()
+    init1()
+    bars, blk, jump, pump, stomp = 0, 0, 0, 0, 0
+    lamps3, lasers, noise3, zaps3, sweep = {}, {t0 = -9, n = 0}, {t0 = -9, v = 0}, {}, 0
+    for i = 1, 8 do lamps3[i] = 0 end
   end
   M.clear = M.init
 
@@ -87,6 +109,8 @@ return function(K)
     cone_v = math.min(20, cone_v + 9 * v)
     drive = math.max(drive, v)
     halo = math.max(halo, v)
+    pump = math.max(pump, v)
+    stomp = math.max(stomp, v)
   end
 
   function M.snare(v, n)
@@ -96,6 +120,7 @@ return function(K)
     if #dust >= 6 then table.remove(dust, 1) end
     dust[#dust + 1] = {x = 10 + K.rnd() * 90, t0 = K.T, v = v}
     fuzz = math.max(fuzz, v)
+    noise3.t0, noise3.v = K.T, v
     if K.chaos > 0.45 and (n or 1) == 1 then
       if #cracks >= 6 then table.remove(cracks, 1) end
       cracks[#cracks + 1] = {x = 8 + K.rnd() * 90, seed = math.floor(K.rnd() * 999), t0 = K.T}
@@ -108,6 +133,10 @@ return function(K)
     local p = 1 + math.floor(K.rnd() * 2)
     if open then puff(PX[p] + (K.rnd() < 0.5 and -HW or HW), BED - 6, 3, v * 0.8)
     elseif K.rnd() < 0.4 then puff(PX[p] + (K.rnd() - 0.5) * 30, CROWN0, 2, v * 0.5) end
+    -- (view 3: a closed hat blips one lamp, an open hat flares a pair)
+    local li = 1 + math.floor(K.rnd() * 8)
+    lamps3[li] = math.max(lamps3[li], open and 1 or 0.5 * v + 0.2)
+    if open then lamps3[9 - li] = math.max(lamps3[9 - li], 0.9) end
   end
 
   function M.tick(kind)
@@ -115,6 +144,8 @@ return function(K)
     arcs[#arcs + 1] = {p = 1 + math.floor(K.rnd() * 2), y = CROWN1 + 4 + K.rnd() * 26, t0 = K.T,
       seed = math.floor(K.rnd() * 999)}
     trem = 1
+    if #zaps3 >= 4 then table.remove(zaps3, 1) end
+    zaps3[#zaps3 + 1] = {t0 = K.T, c = math.floor(K.rnd() * 5), r = math.floor(K.rnd() * 2), seed = math.floor(K.rnd() * 999)}
   end
 
   function M.perc(kind, v) if kind == 6 or kind == 3 then M.tick(4) else M.hat(v, false) end end
@@ -128,9 +159,19 @@ return function(K)
     end
     pitch = math.min(4, 1 + n * 0.2)
     buzz = math.max(buzz, math.min(1, n / 8))
+    lasers.t0, lasers.n = K.T, n
   end
 
-  function M.fill() lamp = math.max(lamp, 0.6) end
+  function M.fill()
+    lamp = math.max(lamp, 0.6)
+    jump = 1
+    for i = 1, 8 do lamps3[i] = math.max(lamps3[i], 0.7) end
+  end
+
+  function M.bar(S)
+    bars = bars + 1
+    blk = 1
+  end
 
   ---------------------------------------------------------------- view 1 draw
   -- a ram's top edge: slams down in 40 ms, climbs back over most of a beat
@@ -257,12 +298,12 @@ return function(K)
       line(3 + hot * 2, cx + 2, CROWN1, cx + 2, y)
       -- the ram: ribbed, a hot edge where it strikes
       local r0, r1 = cx - RHW, cx + RHW
-      line(4 + hot * 2, r0, y, r1, y)
-      line(3, r0, y, r0, y + RH)
-      line(3, r1, y, r1, y + RH)
+      line(2.5 + hot, r0, y, r1, y)
+      line(2.5, r0, y, r0, y + RH)
+      line(2.5, r1, y, r1, y + RH)
       -- (the mids: the ram's body rings)
-      for q = 4, RH - 2, 4 do put(1 + lo * 0.5 + mid * 2.8, r0 + 1, y + q, 2 * RHW - 1, 1) end
-      line(4.5 + hot * 5, r0, y + RH, r1, y + RH)
+      for q = 4, RH - 2, 5 do put(1 + lo * 0.3 + mid * 1.2, r0 + 1, y + q, 2 * RHW - 1, 1) end
+      line(2.5 + hot * 3, r0, y + RH, r1, y + RH)
       -- chaos: a ghost of the ram knocked out of step
       if c > 0.4 then
         local gy = UP + 4 + 8 * (0.5 + 0.5 * math.sin(T * 2 + p * 2))
@@ -378,8 +419,18 @@ return function(K)
     put(lv, GX - 3, 3, 7, 4)
     if lamp > 0.3 then K.ring(lamp * 3, GX, 5, 6 + math.sin(T * 5) * 1.5, 12) end
 
+    -- the stack of stamped plates by the line: one more each bar, cleared
+    -- at the end of the phrase; the newest glows
+    local pl = math.max(1, math.floor(K.num(S.phrase_len, 16)))
+    local phr = clamp((K.num(S.phrase_pos, 0) % pl + K.bar_ph) / pl, 0, 0.999)
+    local np = math.floor(phr * 8) + 1
+    for k = 1, np do
+      local top = k == np
+      put(top and (2 + blk * 7 + mid * 2) or (1.5 + mid * 1.5), 99 + (k % 2), FLOOR - 1 - k * 2 + jy, 9, 1)
+    end
+
     -- haze in the roof, thicker with energy and the steam
-    K.haze(0, 0, 128, 22, 0.08 + e * 0.15 + kl * 0.15 + hi * 0.35, 1, T * 6)
+    K.haze(0, 0, 128, 22, 0.05 + e * 0.08 + kl * 0.15 + hi * 0.15, 1, T * 6)
   end
 
   ---------------------------------------------------------------- view 2 draw
@@ -469,6 +520,12 @@ return function(K)
     K.disc(3.5 + lo + K.env.kick * 3, CX, CY, dr)
     put(math.min(12, 5 + K.env.kick * 6 + hi * 3), CX - dr * 0.45, CY - dr * 0.5, 2, 2)
 
+    -- the phrase: a bead round the surround, each bar flashes it
+    local pl = math.max(1, math.floor(K.num(S.phrase_len, 16)))
+    local phr = clamp((K.num(S.phrase_pos, 0) % pl + K.bar_ph) / pl, 0, 1)
+    local ba = phr * K.TAU - math.pi / 2
+    K.disc(3 + blk * 7 + A[K.AMP] * 2, CX + math.cos(ba) * (SR + 6), CY + math.sin(ba) * (SR + 6), 1.5 + blk)
+
     -- the trace across the whole picture, clipping square on the kick
     local drv = 1 + drive * (4 + e * 6) + e * 1.5
     local amp = (7 + e * 5 + drive * 4) * (1 - kl * 0.4)
@@ -488,8 +545,149 @@ return function(K)
     end
   end
 
+  ---------------------------------------------------------------- view 3 draw
+  -- the hakken floor: a wall of bass bins behind a crowd stomping on the 16ths,
+  -- lamps on the truss over them, smoke, lasers when a ratchet fires
+  local WY0, WY1 = 11, 39               -- the wall of bins
+  local NCB, NRB = 6, 2                 -- cabinets across, up
+  local CW = 21
+
+  local function draw_floor(S)
+    local T, DT, e, c = K.T, K.DT, K.energy, K.chaos
+    local lo, hi, mid, amp = A[K.LO], A[K.HI], A[K.MID], A[K.AMP]
+    local kl = K.kickless
+    pump = pump * math.exp(-DT / 0.12)
+    for i = 1, 8 do lamps3[i] = lamps3[i] * math.exp(-DT / 0.18) end
+    sweep = sweep + (0.3 + e * 0.5 + c * 0.8) * (1 - kl * 0.6) * K.DTS
+    local pl = math.max(1, math.floor(K.num(S.phrase_len, 16)))
+    local phr = clamp((K.num(S.phrase_pos, 0) % pl + K.bar_ph) / pl, 0, 1)
+
+    -- the wall of bins: each cone thrown on the kick, glowing with the lows
+    local nage = K.T - noise3.t0
+    for r = 0, NRB - 1 do
+      for q = 0, NCB - 1 do
+        local x0, y0 = 1 + q * CW, WY0 + r * 14
+        local jx = (c > 0.5 and K.hash(q + r * 7 + math.floor(T * 6) * 13, 41) < (c - 0.5) * 0.6) and 1 or 0
+        local bl = 1 + amp * 0.4 + blk * 1.5
+        line(bl, x0 + jx, y0 + 1, x0 + jx, y0 + 12)
+        line(bl, x0 + CW - 2 + jx, y0 + 1, x0 + CW - 2 + jx, y0 + 12)
+        put(bl, x0 + jx, y0, 4, 1)
+        put(bl, x0 + CW - 5 + jx, y0, 4, 1)
+        put(bl, x0 + jx, y0 + 13, 4, 1)
+        put(bl, x0 + CW - 5 + jx, y0 + 13, 4, 1)
+        local cx, cy = x0 + CW / 2 - 1 + jx, y0 + 6.5
+        K.ring(1 + lo * 0.4, cx, cy, 4.5, 12)
+        K.disc(1 + lo * 1.5 + pump * 2.5, cx, cy, 1.6)
+        -- (the highs glitter the bolts)
+        put(1 + hi * 3 * (0.5 + 0.5 * math.sin(T * 9 + q * 1.7 + r)), x0 + 2 + jx, y0 + 2, 1, 1)
+        put(1 + hi * 3 * (0.5 + 0.5 * math.sin(T * 8 + q * 2.3 + r * 2)), x0 + CW - 4 + jx, y0 + 11, 1, 1)
+      end
+    end
+    -- noise snares: the wall fizzes
+    if nage < 0.3 then
+      local u = nage / 0.3
+      local fr = math.floor(T * 30)
+      for k = 0, 15 do
+        local x = K.hash(k + fr * 31, 43) * 126
+        local y = WY0 + K.hash(k + fr * 31, 44) * (WY1 - WY0)
+        put((2 + noise3.v * 5) * (1 - u), x, y, 2, 1)
+      end
+    end
+    -- ring-mod ticks: an arc between two bins
+    for i = #zaps3, 1, -1 do
+      local Z = zaps3[i]
+      local u = (K.T - Z.t0) / 0.18
+      if u >= 1 then table.remove(zaps3, i)
+      else
+        local y = WY0 + 6 + Z.r * 14
+        local xa, xb = 1 + Z.c * CW + CW / 2 + 4, 1 + (Z.c + 1) * CW + CW / 2 - 6
+        local px, py = xa, y
+        local fr = math.floor(K.T * 12)
+        for j = 1, 5 do
+          local x = xa + (xb - xa) * j / 5
+          local yy = y + (j < 5 and (K.hash(Z.seed + j + fr * 7, 9) - 0.5) * 7 or 0)
+          line(7 * (1 - u) + 1, px, py, x, yy)
+          px, py = x, yy
+        end
+      end
+    end
+
+    -- the truss: two chords and a zigzag, the phrase filling its LEDs
+    line(1 + amp * 0.4, 0, 6, 127, 6)
+    for x = 0, 124, 8 do line(1, x, 1, x + 4, 6); line(1, x + 4, 6, x + 8, 1) end
+    for k = 0, 15 do
+      if k < phr * 16 then put(2 + blk * 6 + mid, 3 + k * 8, 3, 2, 1) end
+    end
+
+    -- smoke over the floor
+    K.haze(0, 26, 128, 50, 0.1 + kl * 0.35 + mid * 0.06, 1 + kl * 0.6, T * 4)
+
+    -- the lamps and their beams, sweeping; hats fire them
+    for i = 1, 8 do
+      local lx = 8 + (i - 1) * 16
+      local a = math.sin(sweep + i * 0.9) * (0.35 + c * 0.4) + (i % 2 == 0 and 0.15 or -0.15)
+      local lv = lamps3[i]
+      local bl = 0.4 + mid * 0.3 + lv * 1.6 + e * 0.1
+      local ex = lx + math.sin(a) * 44
+      line(bl, lx, 8, ex, 46)
+      put(math.min(12, 2 + lv * 8 + hi * 2), lx - 1, 7, 3, 1)
+    end
+    -- a ratchet: lasers fanning from the middle of the truss, spinning
+    local la = K.T - lasers.t0
+    if la < 0.7 then
+      local n = clamp(lasers.n, 2, 7)
+      local u = la / 0.7
+      for k = 0, n - 1 do
+        local a = (k / (n - 1) - 0.5) * (1.2 + c * 0.5) + math.floor(la * 4) * 0.08
+        line((1.5 + n * 0.25) * (1 - u * u), 64, 7, 64 + math.sin(a) * 70, 7 + math.cos(a) * 70)
+      end
+    end
+
+    -- the crowd: hakkers stomping the 16ths, arms pumping on the kick;
+    -- kickless they sway with their arms up; a fill throws them all up
+    local step = math.floor(K.stepf) % 2
+    local ju = 1 - jump
+    local jy = ju < 0.4 and -5 * math.sin(math.pi * ju / 0.4) or 0
+    local nb = 8 + math.floor(e * 5)
+    for i = 1, nb do
+      local x = (i - 0.5) / nb * 128 + math.sin(T * 0.5 + i * 2.3) * 3
+      if c > 0.5 then x = x + (K.hash(i + math.floor(T * 3) * 11, 47) - 0.5) * (c - 0.5) * 12 end
+      local y = 45 + math.floor(jy * 0.6 + 0.5)
+      K.disc(1 + amp * 0.5 + mid * 0.4, x, y - 3, 1.8)
+      line(1 + amp * 0.3, x - 3, y + 1, x + 3, y + 1)
+      local up = math.max(kl * 0.8, jump, stomp * 0.6)
+      if up > 0.4 or i % 3 == 0 then line(1.2 + amp * 0.5 + pump * 2, x + 3, y + 1, x + 5, y - 5 - up * 2) end
+    end
+    local nf = 5 + math.floor(e * 2)
+    for i = 1, nf do
+      local x = (i - 0.5) / nf * 128 + math.sin(T * 0.37 + i * 1.7) * 4
+      if c > 0.5 then x = x + (K.hash(i + math.floor(T * 3) * 17, 48) - 0.5) * (c - 0.5) * 16 end
+      local leg = (K.playing and (step + i) % 2 == 0) and 1 or -1
+      local hop = (1 - kl) * (K.playing and 1 or 0)
+      local y = 52 + math.floor(jy + 0.5)
+      local l = 1.1 + amp * 0.5 + mid * 0.4
+      local sw = kl * math.sin(T * 1.4 + i) * 3
+      K.disc(l + 0.5, x + sw * 0.3, y - 4, 2.6)
+      line(l, x - 4, y, x + 4, y)
+      line(l, x, y, x, y + 6)
+      line(l, x, y + 6, x - 2 - leg * hop * 2, 64)
+      line(l, x, y + 6, x + 2 - leg * hop * 2, 64)
+      local up = math.max(kl * 0.8, jump, (i % 3 == 1) and stomp * 0.7 or 0)
+      if up > 0.3 then
+        line(l + pump * 3, x - 4, y, x - 6 + sw, y - 6 - up * 4)
+        line(l + pump * 3, x + 4, y, x + 6 + sw, y - 6 - up * 4)
+      else
+        line(l, x - 4, y, x - 6, y + 5)
+        line(l, x + 4, y, x + 7, y - 3 - pump * 3)
+      end
+    end
+  end
+
   function M.draw(S)
-    if K.view == 2 then draw_cone(S) else draw_shop(S) end
+    blk = blk * math.exp(-K.DT / 0.35)
+    jump = jump * math.exp(-K.DT / 0.5)
+    stomp = stomp * math.exp(-K.DT / 0.12)
+    if K.view == 2 then draw_cone(S) elseif K.view == 3 then draw_floor(S) else draw_shop(S) end
   end
 
   M.init()

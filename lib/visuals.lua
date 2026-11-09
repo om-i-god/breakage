@@ -30,7 +30,8 @@
 --
 -- perc kinds: 1 conga 2 bongo 3 cowbell 4 clave 5 acid 6 metal 7 log 8 plink
 -- 9 guiro 10 tambourine 11 music box 12 squeak 13 talking drum 14 wobble
--- 15 vinyl crackle 16 vox 17 syntom. ticks 1..8: click blip crush ring chirp
+-- 15 vinyl crackle 16 vox 17 syntom 18 log drum (amapiano) 19 bed squeak
+-- 20 tamborzao 21 phonk bell. ticks 1..8: click blip crush ring chirp
 -- zap error pop.
 --
 -- audio reactivity (VISUALS > audio reactivity, 0..10, 5 = as heard): K.A
@@ -38,8 +39,8 @@
 -- pictures run on the drum events alone, 10 = twice as hard), and the whole
 -- picture breathes with the output level: it dims a little as the mix
 -- thins out and comes back up as it fills.
--- K.view (1 or 2, the vis_view param) picks the theme's second view: every
--- theme draws both. vis_shake (off / soft / hard) jolts the whole picture
+-- K.view (1, 2 or 3, the vis_view param) picks the theme's view: every
+-- theme draws all three. vis_shake (off / soft / hard) jolts the whole picture
 -- down a pixel or few on each kick, applied under the themes.
 --
 -- the glitch: VIS.event("glitch", mode, dur) tears the picture for as long
@@ -47,6 +48,12 @@
 -- holds still on each stutter / chop slice while the rest moves on, slides
 -- out and home on a reverse, drifts out while the picture dims through a
 -- tape stop, and coarsens on a crush.
+--
+-- post (applied under every theme, after it draws): vis_mirror folds the
+-- picture onto itself (off / left-right / top-bottom / quad), vis_trails
+-- (0..10) leaves an afterimage that dims away, vis_zoom (off / soft / hard)
+-- swells the picture about its centre on each kick, vis_contrast (soft /
+-- normal / hard) bends the grey levels.
 --
 -- robust: a theme that fails to load, or errors while drawing or hearing
 -- an event, is swapped for a plain fallback scene (logged once) instead of
@@ -58,7 +65,8 @@ VIS.audio_level = 0
 VIS.names = {"dub", "house", "acid", "analord", "syro", "broken", "drill", "gabber",
   "ambient", "rave", "jungle", "industrial", "acoustic", "minipops",
   "techno", "dubstep", "breakcore", "glitch", "toy", "boombap", "tribal", "garage",
-  "footwork", "trap", "disco", "motorik"}
+  "footwork", "trap", "disco", "motorik",
+  "trance", "hardstyle", "amapiano", "gqom", "baile", "jersey", "phonk", "synthwave"}
 
 local FPS = 20
 local TAU = 2 * math.pi
@@ -125,6 +133,12 @@ local rat_n, rat_voice = 0, nil         -- the last ratchet burst
 local slice_i, slice_n, slice_rev = 0, 8, false
 local tick_odd = false
 local shake_dy = 0                      -- kick shake: whole-picture jolt, px
+local zoom = 1                          -- kick zoom: scale about the centre
+local post_mirror = 1                   -- vis_mirror: 1 off 2 fold l/r 3 fold t/b 4 quad
+local post_trail = 0                    -- vis_trails: 0..1, how long the afterimage hangs
+local CURVE = {}                        -- vis_contrast: level -> level
+local ghost, gn = {}, 0                 -- the afterimage: {level, kind, a, b, c, d}...
+local GHOST_MAX = 2400                  -- numbers, = 400 items
 
 local K = {A = AV, AMP = AMP, LO = LO, MID = MID, HI = HI, TAU = TAU,
   env = env, last = last, hist = hist, HIST_N = HIST_N}
@@ -179,7 +193,7 @@ local function lvl(l)
   if not (l >= 0.5) then return nil end                  -- also drops NaN
   l = math.floor(l + 0.5)
   if l > 15 then l = 15 end
-  return l
+  return CURVE[l] or l
 end
 
 local function okc(v) return v == v and v > -1e6 and v < 1e6 end
@@ -219,6 +233,10 @@ local function put(l, x, y, w, h)
   l = lvl(l)
   if not l then return end
   ops = ops + 1
+  if zoom ~= 1 then
+    x, y = 64 + (x - 64) * zoom, 32 + (y - 32) * zoom
+    w, h = math.max(1, w * zoom), math.max(1, h * zoom)
+  end
   y = y + shake_dy
   if held(y) then keep(l, 1, x, y, w, h); return end
   x, y, w = tear(x, y, w)
@@ -235,6 +253,10 @@ local function line(l, x0, y0, x1, y1)
   l = lvl(l)
   if not l then return end
   ops = ops + 1
+  if zoom ~= 1 then
+    x0, y0 = 64 + (x0 - 64) * zoom, 32 + (y0 - 32) * zoom
+    x1, y1 = 64 + (x1 - 64) * zoom, 32 + (y1 - 32) * zoom
+  end
   y0, y1 = y0 + shake_dy, y1 + shake_dy
   if held(y0) then keep(l, 2, x0, y0, x1, y1); return end
   if gl_t > 0 then
@@ -249,6 +271,149 @@ end
 
 local function discard()
   for l = 1, 15 do bn[l], lbn[l] = 0, 0 end
+end
+
+-- the mirror (vis_mirror): the left half (and / or the top half) of the
+-- picture is kept and folded over onto the other side, so the picture stays
+-- as full as it was and turns symmetrical. done on the batches, after the
+-- theme has drawn, so every theme gets it.
+local fold, afterimage
+local fb, fbn = {}, 0                   -- scratch: the folded rects / lines
+local function fold_rects(b, n, lr, tb)
+  fbn = 0
+  for i = 1, n, 4 do
+    local x, y, w, h = b[i], b[i + 1], b[i + 2], b[i + 3]
+    if lr then
+      local x1 = math.min(x + w, 64)
+      if x1 > x then w = x1 - x else w = 0 end
+    end
+    if tb and w > 0 then
+      local y1 = math.min(y + h, 32)
+      if y1 > y then h = y1 - y else h = 0 end
+    end
+    if w > 0 and h > 0 then
+      fb[fbn + 1], fb[fbn + 2], fb[fbn + 3], fb[fbn + 4] = x, y, w, h
+      fbn = fbn + 4
+      if lr then
+        fb[fbn + 1], fb[fbn + 2], fb[fbn + 3], fb[fbn + 4] = 128 - x - w, y, w, h
+        fbn = fbn + 4
+      end
+      if tb then
+        fb[fbn + 1], fb[fbn + 2], fb[fbn + 3], fb[fbn + 4] = x, 64 - y - h, w, h
+        fbn = fbn + 4
+        if lr then
+          fb[fbn + 1], fb[fbn + 2], fb[fbn + 3], fb[fbn + 4] = 128 - x - w, 64 - y - h, w, h
+          fbn = fbn + 4
+        end
+      end
+    end
+  end
+  for i = 1, fbn do b[i] = fb[i] end
+  return fbn
+end
+
+-- a line cut to the side of `c` it starts on (x when ax == 1, else y)
+local function cut(x0, y0, x1, y1, c, ax)
+  local a0, a1 = (ax == 1) and x0 or y0, (ax == 1) and x1 or y1
+  if a0 >= c and a1 >= c then return nil end
+  if a0 < c and a1 < c then return x0, y0, x1, y1 end
+  local u = (c - a0) / (a1 - a0)
+  local mx, my = x0 + (x1 - x0) * u, y0 + (y1 - y0) * u
+  if a0 < c then return x0, y0, mx, my end
+  return mx, my, x1, y1
+end
+
+local function fold_lines(b, n, lr, tb)
+  fbn = 0
+  for i = 1, n, 4 do
+    local x0, y0, x1, y1 = b[i], b[i + 1], b[i + 2], b[i + 3]
+    if lr then x0, y0, x1, y1 = cut(x0, y0, x1, y1, 64, 1) end
+    if x0 and tb then x0, y0, x1, y1 = cut(x0, y0, x1, y1, 32, 2) end
+    if x0 then
+      fb[fbn + 1], fb[fbn + 2], fb[fbn + 3], fb[fbn + 4] = x0, y0, x1, y1
+      fbn = fbn + 4
+      if lr then
+        fb[fbn + 1], fb[fbn + 2], fb[fbn + 3], fb[fbn + 4] = 128 - x0, y0, 128 - x1, y1
+        fbn = fbn + 4
+      end
+      if tb then
+        fb[fbn + 1], fb[fbn + 2], fb[fbn + 3], fb[fbn + 4] = x0, 64 - y0, x1, 64 - y1
+        fbn = fbn + 4
+        if lr then
+          fb[fbn + 1], fb[fbn + 2], fb[fbn + 3], fb[fbn + 4] = 128 - x0, 64 - y0, 128 - x1, 64 - y1
+          fbn = fbn + 4
+        end
+      end
+    end
+  end
+  for i = 1, fbn do b[i] = fb[i] end
+  return fbn
+end
+
+fold = function()
+  local lr = post_mirror == 2 or post_mirror == 4
+  local tb = post_mirror == 3 or post_mirror == 4
+  for l = 1, 15 do
+    if bn[l] > 0 then bn[l] = fold_rects(batch[l], bn[l], lr, tb) end
+    if lbn[l] > 0 then lbn[l] = fold_lines(lbatch[l], lbn[l], lr, tb) end
+  end
+end
+
+-- the afterimage (vis_trails): what was drawn hangs on for a few frames,
+-- dimming a level or so a frame, under the new picture. the ghost is kept
+-- as level-tagged items and decays on time, so the frame rate changes
+-- nothing; it never reaches level 15 and is capped in size.
+local GK = {}                           -- this frame's ghost, rebuilt
+afterimage = function()
+  local keep_f = math.exp(-DT / (0.04 + post_trail * 0.3))
+  local out, on = GK, 0
+  -- the old ghost, one step dimmer, drawn first (under everything)
+  for i = 1, gn, 6 do
+    local l = ghost[i] * keep_f
+    if l >= 1 and on < GHOST_MAX then
+      out[on + 1], out[on + 2], out[on + 3], out[on + 4], out[on + 5], out[on + 6] =
+        l, ghost[i + 1], ghost[i + 2], ghost[i + 3], ghost[i + 4], ghost[i + 5]
+      on = on + 6
+    end
+  end
+  local old_n = on
+  -- this frame joins the ghost at a little under its own level
+  for l = 15, 1, -1 do
+    local lg = math.min(l * 0.8, 12)
+    local b, n = batch[l], bn[l]
+    for i = 1, n, 4 do
+      if on >= GHOST_MAX then break end
+      out[on + 1], out[on + 2], out[on + 3], out[on + 4], out[on + 5], out[on + 6] = lg, 1, b[i], b[i + 1], b[i + 2], b[i + 3]
+      on = on + 6
+    end
+    b, n = lbatch[l], lbn[l]
+    for i = 1, n, 4 do
+      if on >= GHOST_MAX then break end
+      out[on + 1], out[on + 2], out[on + 3], out[on + 4], out[on + 5], out[on + 6] = lg, 2, b[i], b[i + 1], b[i + 2], b[i + 3]
+      on = on + 6
+    end
+  end
+  -- draw the old ghost now, level by level, before the frame goes on top
+  for gl = 1, 12 do
+    local any = false
+    for i = 1, old_n, 6 do
+      if math.floor(out[i]) == gl and out[i + 1] == 1 then
+        if not any then screen.level(gl); any = true end
+        screen.rect(out[i + 2], out[i + 3], out[i + 4], out[i + 5])
+      end
+    end
+    if any then screen.fill() end
+    any = false
+    for i = 1, old_n, 6 do
+      if math.floor(out[i]) == gl and out[i + 1] == 2 then
+        if not any then screen.level(gl); screen.line_width(1); any = true end
+        screen.move(out[i + 2], out[i + 3])
+        screen.line(out[i + 4], out[i + 5])
+      end
+    end
+    if any then screen.stroke() end
+  end
+  GK, ghost, gn = ghost, out, on
 end
 
 local function flush()
@@ -269,6 +434,8 @@ local function flush()
     end
   end
   gl_cap = false
+  if post_mirror > 1 then fold() end
+  if post_trail > 0 then afterimage() end
   for l = 1, 15 do
     local n = bn[l]
     if n > 0 then
@@ -490,6 +657,11 @@ local function physics(S)
   -- the jolt steps a pixel a frame toward its depth, so it never jumps
   local sh_to = sh > 1 and math.floor(env.kick * env.kick * (sh == 2 and 1.6 or 3.2) + 0.5) or 0
   if sh_to > shake_dy then shake_dy = shake_dy + 1 elseif sh_to < shake_dy then shake_dy = shake_dy - 1 end
+  -- kick zoom: the picture swells a few percent about the centre on a kick
+  local zm = opt("vis_zoom", 1)
+  local z_to = zm > 1 and 1 + env.kick * env.kick * (zm == 2 and 0.035 or 0.08) or 1
+  zoom = follow(zoom, z_to, z_to > zoom and 0.04 or 0.15, DT)
+  if math.abs(zoom - 1) < 0.002 then zoom = 1 end
   bar_pulse = follow(bar_pulse, bar_kick, 0.05, DT)
   bar_kick = bar_kick * math.exp(-DT / 0.5)
   local dim_to = (gl_t > 0 and gl_mode == 2) and (0.6 + 0.4 * gl_t / math.max(gl_dur, 0.01)) or 1
@@ -535,7 +707,8 @@ local function sync(S)
   K.step = num(S.step, 0)
   K.stepf = stepf
   K.S = S
-  K.view = opt("vis_view", 1) == 2 and 2 or 1
+  local v = math.floor(opt("vis_view", 1))
+  K.view = (v == 2 or v == 3) and v or 1
   K.react = react
 end
 
@@ -701,7 +874,7 @@ function VIS.event(kind, a, b, c)
     hit("tom", v)
     if i then deliver(i, "tom", v, v, hz) end
   elseif kind == "perc" then
-    local k = clamp(math.floor(num(a, 1)), 1, 17)
+    local k = clamp(math.floor(num(a, 1)), 1, 21)
     local v = vel(b)
     hit("perc", v)
     if k == 5 then hit("acid", v) end
@@ -776,6 +949,7 @@ function VIS.draw(i, S, dt)
       local old = THEMES[cur]
       if old.clear then call(cur, "clear") elseif old.init then call(cur, "init") end
       for k = #grains, 1, -1 do grains[k] = nil end
+      gn = 0
       xf, cur = 0, i
       broken[cur] = nil
     end
@@ -783,6 +957,17 @@ function VIS.draw(i, S, dt)
     xf = math.min(1, xf + DT / 0.5)
   end
   react = clamp(opt("vis_react", 5) / 5, 0, 2)
+  post_mirror = clamp(math.floor(opt("vis_mirror", 1)), 1, 4)
+  post_trail = clamp(opt("vis_trails", 0), 0, 10) / 10
+  if post_trail == 0 then gn = 0 end
+  local ct = clamp(math.floor(opt("vis_contrast", 2)), 1, 3)
+  if ct ~= CURVE.mode then
+    CURVE = {mode = ct}
+    if ct ~= 2 then
+      local g = ct == 1 and 0.7 or 1.5
+      for l = 1, 15 do CURVE[l] = math.max(1, math.floor(15 * (l / 15) ^ g + 0.5)) end
+    end
+  end
   for k = 1, 4 do AV[k] = clamp(A[k] * react, 0, 1) end
   B = opt("vis_brightness", 10) / 10 * ease(xf)
   -- the picture breathes with the output level

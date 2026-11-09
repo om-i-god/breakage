@@ -1202,10 +1202,11 @@ Engine_Breakage : CroneEngine {
       sig = HPF.ar(sig, 25);
       // headroom: a busy bar sums to ~1.7 here, which pushed the drive's
       // tanh into hard saturation on every kick + snare (audible crunch).
-      // trim into the drive, make the level back up after it
+      // trim into the drive, make the level back up after it (busy bars peak
+      // ~0.7, the old level: norns mixers with gain after the engine clip)
       sig = sig * 0.35;
       sig = (sig * (1 + (drive * 2))).tanh / (1 + (drive * 0.6));
-      sig = Limiter.ar(sig * level * 1.7, 0.95, 0.01);
+      sig = Limiter.ar(sig * level * 1.45, 0.95, 0.01);
       // the visuals' ears: three cheap filters and four Amplitude followers
       // on the mono sum, mapped from dB to 0..1
       toVis = { arg a, lo, hi; a.max(0.00001).ampdb.linlin(lo, hi, 0, 1) };

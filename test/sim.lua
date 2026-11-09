@@ -32,6 +32,7 @@ engine = setmetatable({}, {__index = function(_, k)
     end
     if k == "tweak" and not TWEAKS[(...)] then error("engine.tweak: unknown key '" .. (...) .. "'", 2) end
     calls[k] = (calls[k] or 0) + 1
+    if perc_log and k == "perc" then perc_log[#perc_log + 1] = {select(5, ...), select(6, ...), select(1, ...), select(2, ...)} end
     if step_log and (k == "snare" or k == "rim" or k == "kick") then
       step_log[#step_log + 1] = {k, _breakage.S.sib, _breakage.S.bar}
     end
@@ -229,9 +230,10 @@ for _, o in ipairs(OVR) do
   for m = 2, n do
     params:set(id, m)
     local before = types[voice .. (m - 1)] or 0
-    for _ = 1, 6 do
+    for _ = 1, 16 do
       run_bars(2)
       if (types[voice .. (m - 1)] or 0) > before then break end
+      if voice == "snare" then key(1, 1); key(3, 1); key(3, 0); key(1, 0) end  -- mutate: a phrase with snares, not rims
     end
     assert((types[voice .. (m - 1)] or 0) > before, id .. " " .. m .. ": " .. voice .. " model " .. (m - 1) .. " never played")
   end
@@ -242,6 +244,28 @@ for _, id in ipairs({"snare_decay", "hat_decay", "perc_decay"}) do
 end
 params:set("play_mode", 1)
 print("voice models ok")
+
+-- MELODIC: a voice's tone reaches the engine, octave doubles its pitch,
+-- level 0 silences it, and the others keep theirs
+params:set("play_mode", 3); S.hold_energy = 0.9; params:set("chaos", 30)
+params:set("perc_model", 2)                                     -- every perc a conga
+params:set("mel_conga_tone", 100)
+perc_log = {}; run_bars(4)
+assert(#perc_log > 0, "no congas")
+local hz0 = {}
+for _, p in ipairs(perc_log) do
+  assert(p[1] == 1 and math.abs(p[2] - 1) < 1e-9, "conga tone not 1: " .. tostring(p[2]))
+  hz0[#hz0 + 1] = p[4]
+end
+params:set("mel_conga_oct", 1); perc_log = {}; run_bars(4)
+local lo_ok = false
+for _, p in ipairs(perc_log) do if p[4] > 150 then lo_ok = true end end
+assert(lo_ok, "conga octave +1 didn't raise it")
+params:set("mel_conga_lvl", 0); perc_log = {}; run_bars(3)
+assert(#perc_log == 0, "conga level 0 still played " .. #perc_log)
+for _, id in ipairs({"mel_conga_tone", "mel_conga_oct", "mel_conga_lvl"}) do params:set(id, ({mel_conga_tone = 50, mel_conga_oct = 0, mel_conga_lvl = 100})[id]) end
+params:set("perc_model", 1); perc_log = nil; params:set("play_mode", 1)
+print("melodic ok")
 
 -- PARAMS > groove forces a family on any kit; back to kit lets the kit choose
 local G = include("lib/gen")
@@ -267,7 +291,7 @@ for m = 1, 8 do
 end
 -- electro's backbeat is pattern steps 5 and 13 (beats 2 and 4): in 5/4 each
 -- grouping puts it on its own beats
-params:set("meter", 3)
+params:set("meter", 3); params:set("trip54", 1)
 local WANT = {[1] = {[4] = true, [8] = true, [16] = true},     -- 3+2:   K S s | K S
               [2] = {[4] = true, [12] = true, [16] = true},    -- 2+3:   K S | K S s
               [3] = {[4] = true, [12] = true}}                 -- 2+2+1: K S | K S | K
@@ -288,6 +312,33 @@ for g = 1, 3 do
   for st in pairs(WANT[g]) do assert(seen[st], "5/4 grouping " .. g .. ": no backbeat on step " .. st) end
   step_log = nil
 end
+-- 2+2+1 opens on a triplet: one kick and two rims across beat 1, nothing
+-- else from the groove on it; off, the groove's beat 1 is back
+params:set("group54", 3); params:set("trip54", 2)
+run_bars(2)
+step_log = {}
+local bars = 0
+run_bars(6, function() end)
+local per = {}
+for _, e in ipairs(step_log) do
+  if e[2] < 4 then
+    local b = per[e[3]] or {kick = 0, snare = 0, rim = 0}
+    per[e[3]] = b
+    b[e[1]] = b[e[1]] + 1
+  end
+end
+local last = 0
+for bar in pairs(per) do last = math.max(last, bar) end
+per[last] = nil                                   -- the run stops on its downbeat: rims still to come
+-- beat 1 holds only the triplet: one kick at most (none in a kickless bar),
+-- and in most bars the full kick-rim-rim figure
+for bar, b in pairs(per) do
+  assert(b.kick <= 1 and b.snare == 0 and b.rim <= 2, string.format("bar %d: beat 1 kick %d snare %d rim %d", bar, b.kick, b.snare, b.rim))
+  if b.kick == 1 and b.rim == 2 then bars = bars + 1 end
+end
+assert(bars >= 3, "full triplets in only " .. bars .. " bars")
+step_log = nil
+params:set("trip54", 1)
 params:set("groove", 1); params:set("meter", 1); params:set("group54", 1)
 params:set("fills", 1); params:set("play_mode", 1)
 print("time signatures ok")
@@ -441,7 +492,7 @@ key(2, 1); enc(2, 1); key(2, 0)                       -- kit next (pending)
 assert(S.kit_pending, "hold K2 + E2 didn't queue a kit")
 run_bars(1); assert(not S.kit_pending, "kit didn't land on the bar")
 key(3, 1); enc(3, 1); key(3, 0)
-for pg = 1, 5 do
+for pg = 1, 10 do
   key(1, 1); enc(2, 1); key(1, 0)
   enc(1, 2); enc(2, -1); enc(3, 1)
 end

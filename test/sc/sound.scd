@@ -33,12 +33,20 @@ e.cmd(\hat, 0.8, 1.0, 0.5, 0, 1); 0.16.wait; ~reset.value; 0.25.wait;
 ~seg.("hat unchoked tail (expect > choke)"); gap.value;
 hits.(2, 0.8, { e.cmd(\ride, 0.8, 1.2, 0.5, 0) }); ~seg.("ride"); gap.value;
 hits.(4, 0.2, { e.cmd(\shaker, 0.8, 0.07, 0) }); ~seg.("shaker"); gap.value;
-hits.(3, 0.4, { e.cmd(\tom, 0.8, 110, 0.3, 0, 0) }); ~seg.("tom"); gap.value;
-hits.(3, 0.4, { e.cmd(\tom, 0.8, 110, 0.3, 0, -7) }); ~seg.("tom bend -7"); gap.value;
+hits.(3, 0.4, { e.cmd(\tom, 0.8, 110, 0.3, 0, 0, 0.5) }); ~seg.("tom"); gap.value;
+hits.(3, 0.4, { e.cmd(\tom, 0.8, 110, 0.3, 0, -7, 0.5) }); ~seg.("tom bend -7"); gap.value;
 [\conga, \bongo, \cowbell, \clave, \acid, \metal, \log, \plink, \guiro, \tambourine, \musicbox, \squeak, \talking, \wobble, \crackle, \vox, \syntom].do { |name, k|
-  hits.(4, 0.25, { |i| e.cmd(\perc, 0.8, [220, 400, 540, 2500, 110, 440, 220, 440, 2800, 6000, 1046, 660, 147, 55, 80, 220, 147][k] * [1, 1.5].wrapAt(i), 0.25, 0, k + 1) });
+  hits.(4, 0.25, { |i| e.cmd(\perc, 0.8, [220, 400, 540, 2500, 110, 440, 220, 440, 2800, 6000, 1046, 660, 147, 55, 80, 220, 147][k] * [1, 1.5].wrapAt(i), 0.25, 0, k + 1, 0.5) });
   ~seg.("perc " ++ name); gap.value;
 };
+// tone 0 and 1 on every perc kind and the tom: never silent, never clipping
+17.do { |k|
+  [0, 1].do { |tn|
+    hits.(3, 0.25, { |i| e.cmd(\perc, 0.8, [220, 400, 540, 2500, 110, 440, 220, 440, 2800, 6000, 1046, 660, 147, 55, 80, 220, 147][k], 0.3, 0, k + 1, tn) });
+    ~seg.("perc " ++ (k + 1) ++ " tone " ++ tn); gap.value;
+  };
+};
+[0, 1].do { |tn| hits.(3, 0.3, { e.cmd(\tom, 0.8, 110, 0.3, 0, 0, tn) }); ~seg.("tom tone " ++ tn); gap.value };
 [\click, \blip, \crush, \ring, \chirp, \zap, \error, \pop].do { |name, k|
   hits.(6, 0.12, { e.cmd(\tick, 0.8, k + 1, 3000, 0) }); ~seg.("tick " ++ name); gap.value;
 };

@@ -8,6 +8,7 @@
 --   voices: kick / snare / hat model
 --   groove: groove / perc / ticks
 --   time: meter / 5/4 / 7/8 grouping
+--   melodic: voice / control / value
 --   space: swing / reverb / crush
 --   break: level / pitch / beats
 -- K2 tap: drop (kick + hats out)
@@ -277,9 +278,27 @@ local function hat(vel, open)
 end
 
 
+-- MELODIC: each melodic voice's own level, tone, decay and octave
+local MEL = {
+  {"tom", "tom"}, {"conga", "conga"}, {"bongo", "bongo"}, {"cowbell", "cowbell"}, {"clave", "clave"},
+  {"acid", "acid"}, {"metal", "metal pipe"}, {"log", "log"}, {"plink", "plink"}, {"guiro", "guiro"},
+  {"tamb", "tambourine"}, {"musicbox", "music box"}, {"squeak", "squeak"}, {"talk", "talking drum"},
+  {"wobble", "wobble"}, {"crackle", "crackle"}, {"vox", "vox"}, {"syntom", "syntom"}, {"ticks", "glitch ticks"},
+}
+local PERC_KEY = {"conga", "bongo", "cowbell", "clave", "acid", "metal", "log", "plink", "guiro", "tamb",
+  "musicbox", "squeak", "talk", "wobble", "crackle", "vox", "syntom"}
+local MEL_CTL = {{"lvl", "level"}, {"tone", "tone"}, {"dec", "decay"}, {"oct", "octave"}}
+local function mel(key, ctl, d)
+  local ok, v = pcall(params.get, params, "mel_" .. key .. "_" .. ctl)
+  return ok and v or d
+end
+
 local function tom(vel, deg, bend)
-  local hz = mtof(in_key(root_note(43) + (deg or 0)))
-  engine.tom(0.7 * vel, hz, 0.35, (math.random() - 0.5) * 0.8, bend or 0)
+  local lvl = mel("tom", "lvl", 100) / 100
+  if lvl <= 0 then return end
+  local hz = mtof(in_key(root_note(43) + (deg or 0) + 12 * mel("tom", "oct", 0)))
+  engine.tom(0.7 * vel * lvl, hz, 0.35 * mel("tom", "dec", 100) / 100, (math.random() - 0.5) * 0.8, bend or 0,
+    mel("tom", "tone", 50) / 100)
   VIS.event("tom", vel, hz)
 end
 
@@ -292,14 +311,23 @@ local function perc(st, vel)
   else
     hz = PERC_FIXED[kind] or mtof(in_key(root_note(PERC_BASE[kind]) + st.deg))
   end
+  local key = PERC_KEY[kind]
+  local lvl = mel(key, "lvl", 100) / 100
+  if lvl <= 0 then return end
+  -- octave moves the pitched kinds (guiro, tambourine and crackle are filters / densities: left alone)
+  if kind ~= 9 and kind ~= 10 and kind ~= 15 then hz = hz * 2 ^ mel(key, "oct", 0) end
   local decay = kind == 5 and (0.12 + S.energy * 0.2) or PERC_DECAY[kind]
-  engine.perc(0.6 * vel, hz, decay * params:get("perc_decay") / 100, (math.random() - 0.5) * 0.9, kind)
+  decay = decay * params:get("perc_decay") / 100 * mel(key, "dec", 100) / 100
+  engine.perc(0.6 * vel * lvl, hz, decay, (math.random() - 0.5) * 0.9, kind, mel(key, "tone", 50) / 100)
   VIS.event("perc", kind, vel)
 end
 
 local function tick(kind, vel)
   kind = model("tick_model", kind)
-  engine.tick(0.45 * vel, kind, mtof(in_key(root_note(72) + G.pick({0, 7, 12, 19, 24}))), (math.random() - 0.5) * 1.4)
+  local lvl = mel("ticks", "lvl", 100) / 100
+  if lvl <= 0 then return end
+  engine.tick(0.45 * vel * lvl, kind, mtof(in_key(root_note(72) + G.pick({0, 7, 12, 19, 24}) + 12 * mel("ticks", "oct", 0))),
+    (math.random() - 0.5) * 1.4)
   VIS.event("tick", kind)
 end
 
@@ -462,6 +490,20 @@ local function hit(part, vel, fn)
   end
 end
 
+-- three even hits across the coming beat: kick, rim, rim, a hat on each
+local function triplet()
+  local kv, sv, hv = ev("kick"), ev("snare"), ev("hats")
+  spread(3, 4, function(j)
+    if j == 1 then
+      if kv > 0 then kick(kv) end
+    elseif sv > 0 then
+      snare(sv * (j == 2 and 0.7 or 0.85), (j - 2) * 2, 1, true)
+    end
+    if hv > 0 then hat(hv * (j == 1 and 0.9 or 0.65), false) end
+  end)
+  VIS.event("ratchet", 3, "snare")
+end
+
 local function play_step()
   -- a new time signature lands on the next bar line
   if S.sib >= S.bar_len then S.sib = 0 end
@@ -515,6 +557,16 @@ local function play_step()
 
   local sup = {}
   if S.fill and i >= S.fill.start then sup = do_fill(s) end
+
+  -- 5/4 2+2+1: the bar opens on a triplet, three even hits across beat 1
+  -- (kick, rim, rim, a hat on each), and the groove's own 16ths step aside
+  if S.meter == 3 and S.group == 3 and params:get("trip54") == 2 and s < 4 then
+    local ns = {}
+    for k, v in pairs(sup) do ns[k] = v end
+    ns.kick, ns.snare, ns.clap, ns.hats, ns.ticks, ns.toms, ns.ride = true, true, true, true, true, true, true
+    sup = ns
+    if s == 0 then triplet() end
+  end
 
   local r = read_at(src - 1)
   -- halftime: kick, snare and clap read the first half of the bar, stretched
@@ -828,11 +880,20 @@ local PAGES = {
   {name = "voices", {"kick_model", 1}, {"snare_model", 1}, {"hat_model", 1}},
   {name = "groove", {"groove", 1}, {"perc_model", 1}, {"tick_model", 1}},
   {name = "time", {"meter", 1}, {"group54", 1}, {"group78", 1}},
+  {name = "melodic"},
   {name = "space", {"swing", 1},   {"verb_send", 1},  {"crush_amt", 1}},
   {name = "break", {"break_lvl", 1}, {"brk_pitch", 1}, {"brk_beats", 1}},
   {name = "parts", {"_energy", 1}},
 }
 local function on_parts() return PAGES[page].name == "parts" end
+local function on_mel() return PAGES[page].name == "melodic" end
+local mel_sel, mel_ctl = 2, 2           -- melodic page: the voice and the control E3 sets
+local function mel_id() return "mel_" .. MEL[mel_sel][1] .. "_" .. MEL_CTL[mel_ctl][1] end
+local function mel_line()
+  local id = mel_id()
+  local ok = pcall(params.get, params, id)
+  return MEL[mel_sel][2] .. "  " .. MEL_CTL[mel_ctl][2] .. " " .. (ok and params:string(id) or "-")
+end
 
 local function both_keys()
   toggle_play()
@@ -899,6 +960,17 @@ function enc(n, d)
       params:delta("play_mode", d)
       flash(params:string("play_mode"))
     end
+  elseif on_mel() then
+    -- E1 the voice, E2 the control, E3 its value
+    if n == 1 then
+      mel_sel = clamp(mel_sel + d, 1, #MEL)
+    elseif n == 2 then
+      mel_ctl = clamp(mel_ctl + d, 1, #MEL_CTL)
+    else
+      local ok = pcall(params.get, params, mel_id())
+      if ok then params:delta(mel_id(), d) end
+    end
+    flash(mel_line())
   elseif on_parts() and n > 1 then
     if n == 2 then
       part_sel = clamp(part_sel + d, 1, #C.PARTS)
@@ -1024,6 +1096,8 @@ local function draw_hud()
     text_box(64 - screen.text_extents(hint) / 2, 32, hint, 15)
   elseif msg and util.time() - msg_t < 1.5 then
     text_box(64 - screen.text_extents(msg) / 2, 32, msg, 15)
+  elseif on_mel() then
+    text_box(64 - screen.text_extents(mel_line()) / 2, 32, mel_line(), 8)
   elseif on_parts() then
     text_box(64 - screen.text_extents("K2 mute  K3 solo") / 2, 32, "K2 mute  K3 solo", 4)
   end
@@ -1076,6 +1150,7 @@ local function setup_params()
   params:set_action("meter", function() if not S.playing then S.sib = 0 end end)
   params:add_option("group54", "5/4 grouping", GROUP54, 1)
   params:add_option("group78", "7/8 grouping", GROUP78, 1)
+  params:add_option("trip54", "2+2+1 opens on a triplet", {"off", "on"}, 2)
   params:add_option("phrase_len", "phrase length (bars)", {"8", "16", "32", "64"}, 2)
   params:set_action("phrase_len", function(v)
     local old = S.phrase_len
@@ -1195,6 +1270,17 @@ local function setup_params()
   params:add_number("snare_decay", "snare decay %", 25, 300, 100)
   params:add_number("hat_decay", "open hat decay %", 25, 300, 100)
   params:add_number("perc_decay", "perc decay %", 25, 300, 100)
+
+  params:add_separator("MELODIC")
+  for _, m in ipairs(MEL) do
+    local key, name = m[1], m[2]
+    params:add_number("mel_" .. key .. "_lvl", name .. " level %", 0, 150, 100)
+    if key ~= "ticks" then
+      params:add_number("mel_" .. key .. "_tone", name .. " tone", 0, 100, 50)
+      params:add_number("mel_" .. key .. "_dec", name .. " decay %", 25, 300, 100)
+    end
+    params:add_number("mel_" .. key .. "_oct", name .. " octave", -2, 2, 0)
+  end
 
   params:add_separator("VISUALS")
   params:add_option("theme_mode", "theme", {"follows the kit", "fixed"}, 1)

@@ -29,8 +29,8 @@
 //   hat    amp decay tone pan type           1 analog 2 metallic 3 crisp 4 acoustic 5 lofi 6 minipops 7 dusty 8 click 9 disco; decay <= 0.15 chokes the open hat
 //   ride   amp decay tone pan
 //   shaker amp decay pan
-//   tom    amp hz decay pan bend             bend semitones
-//   perc   amp hz decay pan kind             1 conga 2 bongo 3 cowbell 4 clave 5 acid
+//   tom    amp hz decay pan bend tone        bend semitones; tone 0..1 (skin + drive)
+//   perc   amp hz decay pan kind tone        tone 0..1, its own timbre per kind; 1 conga 2 bongo 3 cowbell 4 clave 5 acid
 //                                            6 metal 7 log 8 plink 9 guiro 10 tambourine
 //                                            11 music box 12 squeak 13 talking drum 14 wobble 15 crackle
 //                                            16 vox 17 syntom
@@ -688,13 +688,14 @@ Engine_Breakage : CroneEngine {
     // tom: pitched sine thump with a skin, a pitch drop, and `bend`
     // semitones glided over the decay
     SynthDef(\brk_tom, {
-      arg out, echoOut, verbOut, amp=0.8, freq=110, decay=0.3, pan=0, bend=0, echo=0, verb=0;
+      arg out, echoOut, verbOut, amp=0.8, freq=110, decay=0.3, pan=0, bend=0, tone=0.5, echo=0, verb=0;
+      var tn   = tone.clip(0, 1);
       var d    = decay.clip(0.02, 4);
       var gl   = (bend * EnvGen.ar(Env([0, 1], [d], [-2]))).midiratio;
       var f    = freq.clip(20, 4000) * gl * EnvGen.ar(Env([1.7, 1], [0.035], [-3]));
       var env  = EnvGen.ar(Env.perc(0.002, d, 1, -5), doneAction: 2);
-      var skin = BPF.ar(WhiteNoise.ar, f * 4, 0.4) * EnvGen.ar(Env.perc(0.0005, 0.012)) * 0.6;
-      var sig  = ((SinOsc.ar(f) * 1.3).tanh + skin) * env * 0.8 * amp;
+      var skin = BPF.ar(WhiteNoise.ar, f * 4, 0.4) * EnvGen.ar(Env.perc(0.0005, 0.012)) * (0.15 + (tn * 1.2));
+      var sig  = (((SinOsc.ar(f) * (0.9 + (tn * 2.2))).tanh * (1.1 - (tn * 0.3))) + skin) * env * 0.8 * amp;
       sends.value(Pan2.ar(sig, pan), out, echoOut, verbOut, echo, verb);
     }).add;
 
@@ -702,138 +703,151 @@ Engine_Breakage : CroneEngine {
     // brk_perc1..17 share args: freq (hz), decay, pan
 
     SynthDef(\brk_perc1, {   // conga
-      arg out, echoOut, verbOut, amp=0.8, freq=220, decay=0.3, pan=0, echo=0, verb=0;
+      arg out, echoOut, verbOut, amp=0.8, freq=220, decay=0.3, pan=0, tone=0.5, echo=0, verb=0;
+      var tn   = tone.clip(0, 1);
       var f    = freq.clip(30, 4000);
       var env  = EnvGen.ar(Env.perc(0.001, decay.clip(0.02, 3), 1, -5), doneAction: 2);
       var body = SinOsc.ar(f * EnvGen.ar(Env([1.3, 1], [0.02], [-3])));
-      var slap = Resonz.ar(WhiteNoise.ar, f * 2.6, 0.3) * EnvGen.ar(Env.perc(0.0005, 0.012)) * 2;
+      var slap = Resonz.ar(WhiteNoise.ar, f * 2.6, 0.3) * EnvGen.ar(Env.perc(0.0005, 0.012)) * (0.5 + (tn * 3));
       var sig  = (((body * env) + slap) * 1.2).tanh * 0.8 * amp;
       sends.value(Pan2.ar(sig, pan), out, echoOut, verbOut, echo, verb);
     }).add;
 
     SynthDef(\brk_perc2, {   // bongo: higher, shorter, more slap
-      arg out, echoOut, verbOut, amp=0.8, freq=400, decay=0.18, pan=0, echo=0, verb=0;
+      arg out, echoOut, verbOut, amp=0.8, freq=400, decay=0.18, pan=0, tone=0.5, echo=0, verb=0;
+      var tn   = tone.clip(0, 1);
       var f    = freq.clip(30, 6000);
       var env  = EnvGen.ar(Env.perc(0.0008, (decay * 0.6).clip(0.015, 2), 1, -6), doneAction: 2);
       var pd   = EnvGen.ar(Env([1.5, 1], [0.012], [-4]));
       var body = SinOsc.ar(f * pd) + (SinOsc.ar(f * pd * 1.52) * 0.2);
-      var slap = Resonz.ar(WhiteNoise.ar, f * 3.4, 0.25) * EnvGen.ar(Env.perc(0.0003, 0.008)) * 2.5;
+      var slap = Resonz.ar(WhiteNoise.ar, f * 3.4, 0.25) * EnvGen.ar(Env.perc(0.0003, 0.008)) * (0.6 + (tn * 3.8));
       var sig  = (((body * env) + slap) * 1.3).tanh * 0.75 * amp;
       sends.value(Pan2.ar(sig, pan), out, echoOut, verbOut, echo, verb);
     }).add;
 
     SynthDef(\brk_perc3, {   // cowbell: two detuned squares through a band-pass
-      arg out, echoOut, verbOut, amp=0.8, freq=540, decay=0.25, pan=0, echo=0, verb=0;
+      arg out, echoOut, verbOut, amp=0.8, freq=540, decay=0.25, pan=0, tone=0.5, echo=0, verb=0;
+      var tn   = tone.clip(0, 1);
       var f   = freq.clip(60, 4000);
       var env = EnvGen.ar(Env([0, 1, 0.3, 0], [0.001, 0.03, decay.clip(0.02, 3)], [0, -3, -4]), doneAction: 2);
       var sig = (Pulse.ar(f) + Pulse.ar(f * 1.48)) * 0.5;
-      sig = BPF.ar(sig, f * 1.5, 0.6) * 2.2;
+      sig = BPF.ar(sig, f * (0.9 + (tn * 1.2)), 0.9 - (tn * 0.6)) * 2.2;
       sends.value(Pan2.ar((sig * env * 0.9 * amp).clip2(1), pan), out, echoOut, verbOut, echo, verb);
     }).add;
 
     SynthDef(\brk_perc4, {   // clave: a ringing resonator on a click
-      arg out, echoOut, verbOut, amp=0.8, freq=2500, decay=0.2, pan=0, echo=0, verb=0;
+      arg out, echoOut, verbOut, amp=0.8, freq=2500, decay=0.2, pan=0, tone=0.5, echo=0, verb=0;
+      var tn   = tone.clip(0, 1);
       var f   = freq.clip(200, 8000);
       var exc = Impulse.ar(0) + (WhiteNoise.ar * EnvGen.ar(Env.perc(0.0002, 0.002)) * 0.3);
       var sig = Ringz.ar(exc, [f, f * 2.57], [decay.clip(0.01, 2) * 0.35, decay.clip(0.01, 2) * 0.1]);
-      sig = Mix(sig * [1, 0.3]) * 0.9;
+      sig = Mix(sig * [1, 0.05 + (tn * 0.6)]) * 0.9;
       DetectSilence.ar(sig, 0.0005, 0.05, doneAction: 2);
       sends.value(Pan2.ar(sig.tanh * 0.85 * amp, pan), out, echoOut, verbOut, echo, verb);
     }).add;
 
     SynthDef(\brk_perc5, {   // acid: a resonant saw squelch at `freq`, 303-ish
-      arg out, echoOut, verbOut, amp=0.8, freq=110, decay=0.25, pan=0, echo=0, verb=0;
+      arg out, echoOut, verbOut, amp=0.8, freq=110, decay=0.25, pan=0, tone=0.5, echo=0, verb=0;
+      var tn   = tone.clip(0, 1);
       var f    = freq.clip(20, 2000);
       var d    = decay.clip(0.03, 3);
       var env  = EnvGen.ar(Env([0, 1, 0.8, 0], [0.002, d * 0.6, 0.04], [0, -1, -4]), doneAction: 2);
       var fenv = EnvGen.ar(Env.perc(0.001, d * 0.5, 1, -4));
       var sig  = Saw.ar(f) + (Pulse.ar(f, 0.5) * 0.2);
-      sig = RLPF.ar(sig, (f * (1.5 + (fenv * 14))).clip(60, 12000), 0.09);
+      sig = RLPF.ar(sig, (f * (1.5 + (fenv * (4 + (tn * 20))))).clip(60, 12000), tn.linexp(0, 1, 0.35, 0.05));
       sig = (sig * 1.6).tanh * env * 0.75 * amp;
       sends.value(Pan2.ar(sig, pan), out, echoOut, verbOut, echo, verb);
     }).add;
 
 
     SynthDef(\brk_perc6, {   // metal: a struck pipe, inharmonic FM
-      arg out, echoOut, verbOut, amp=0.8, freq=440, decay=0.4, pan=0, echo=0, verb=0;
+      arg out, echoOut, verbOut, amp=0.8, freq=440, decay=0.4, pan=0, tone=0.5, echo=0, verb=0;
+      var tn   = tone.clip(0, 1);
       var f    = freq.clip(60, 6000);
       var d    = decay.clip(0.03, 4);
       var env  = EnvGen.ar(Env.perc(0.0005, d * 2, 1, -5), doneAction: 2);
       var ienv = EnvGen.ar(Env.perc(0.0005, d * 0.4, 1, -4));
-      var mod  = SinOsc.ar(f * 1.414) * f * (0.5 + (ienv * 3));
+      var mod  = SinOsc.ar(f * 1.414) * f * ((0.5 + (ienv * 3)) * (0.2 + (tn * 1.6)));
       var sig  = (SinOsc.ar(f + mod) + ((SinOsc.ar(f * 2.76) * 0.3) * ienv)) * env * 0.5;
       sends.value(Pan2.ar(sig.tanh * 0.9 * amp, pan), out, echoOut, verbOut, echo, verb);
     }).add;
 
     SynthDef(\brk_perc7, {   // log: a wooden log drum, mallet click and a woody overtone
-      arg out, echoOut, verbOut, amp=0.8, freq=220, decay=0.3, pan=0, echo=0, verb=0;
+      arg out, echoOut, verbOut, amp=0.8, freq=220, decay=0.3, pan=0, tone=0.5, echo=0, verb=0;
+      var tn   = tone.clip(0, 1);
       var f   = freq.clip(60, 3000);
       var d   = decay.clip(0.03, 2);
       var env = EnvGen.ar(Env.perc(0.0008, d, 1, -6), doneAction: 2);
-      var p2  = SinOsc.ar(f * 3.93) * EnvGen.ar(Env.perc(0.0005, d * 0.25, 1, -6)) * 0.35;
+      var p2  = SinOsc.ar(f * 3.93) * EnvGen.ar(Env.perc(0.0005, d * 0.25, 1, -6)) * (tn * 0.7);
       var clk = BPF.ar(WhiteNoise.ar, (f * 6).clip(100, 12000), 0.5) * EnvGen.ar(Env.perc(0.0003, 0.006)) * 0.8;
       var sig = (((SinOsc.ar(f) * env) + p2 + clk) * 1.1).tanh * 0.8 * amp;
       sends.value(Pan2.ar(sig, pan), out, echoOut, verbOut, echo, verb);
     }).add;
 
     SynthDef(\brk_perc8, {   // plink: a prepared-piano string, a bolt buzzing on it
-      arg out, echoOut, verbOut, amp=0.8, freq=440, decay=0.4, pan=0, echo=0, verb=0;
+      arg out, echoOut, verbOut, amp=0.8, freq=440, decay=0.4, pan=0, tone=0.5, echo=0, verb=0;
+      var tn   = tone.clip(0, 1);
       var f     = freq.clip(60, 4000);
       var d     = decay.clip(0.03, 3);
       var env   = EnvGen.ar(Env.perc(0.001, d * 1.5, 1, -6), doneAction: 2);
-      var parts = Mix([[1, 1], [2.02, 0.5], [3.17, 0.35], [4.53, 0.2], [6.8, 0.12]].collect { |p| SinOsc.ar(f * p[0]) * p[1] });
-      var buzz  = ((SinOsc.ar(f * 0.5) * EnvGen.ar(Env.perc(0.001, d * 0.3)) * 4).clip2(1)) * 0.15;
+      var parts = Mix([[1, 1], [2.02, 0.5], [3.17, 0.35], [4.53, 0.2], [6.8, 0.12]].collect { |p| SinOsc.ar(f * p[0]) * (p[1] * (if(p[0] > 1.5, { 0.3 + (tn * 1.4) }, { 1 }))) });
+      var buzz  = ((SinOsc.ar(f * 0.5) * EnvGen.ar(Env.perc(0.001, d * 0.3)) * 4).clip2(1)) * (tn * 0.3);
       var ham   = LPF.ar(WhiteNoise.ar, 2000) * EnvGen.ar(Env.perc(0.0005, 0.01)) * 0.4;
       var sig   = (((parts * env) + buzz + ham) * 0.6).tanh * amp;
       sends.value(Pan2.ar(sig, pan), out, echoOut, verbOut, echo, verb);
     }).add;
 
     SynthDef(\brk_perc9, {   // guiro: a scrape, a fast run of band-passed clicks
-      arg out, echoOut, verbOut, amp=0.8, freq=2800, decay=0.12, pan=0, echo=0, verb=0;
+      arg out, echoOut, verbOut, amp=0.8, freq=2800, decay=0.12, pan=0, tone=0.5, echo=0, verb=0;
+      var tn   = tone.clip(0, 1);
       var d   = decay.clip(0.03, 1);
       var env = EnvGen.ar(Env([0, 1, 0.7, 0], [0.004, d * 0.85, 0.01], [0, 0, -4]), doneAction: 2);
-      var rt  = EnvGen.ar(Env([38, 62], [d], [1]));
+      var rt  = EnvGen.ar(Env([38, 62], [d], [1])) * (0.6 + (tn * 0.8));
       var clk = Decay2.ar(Impulse.ar(rt), 0.0003, 0.004) * WhiteNoise.ar;
-      var sig = BPF.ar(clk, freq.clip(800, 8000), 0.6) * 6;
+      var sig = BPF.ar(clk, freq.clip(800, 8000) * (0.6 + (tn * 0.8)), 0.6) * 6;
       sends.value(Pan2.ar((sig * env * 0.8 * amp).clip2(1), pan), out, echoOut, verbOut, echo, verb);
     }).add;
 
     SynthDef(\brk_perc10, {   // tambourine: jingles, a cluster of short metallic rings over a shake
-      arg out, echoOut, verbOut, amp=0.8, freq=6000, decay=0.2, pan=0, echo=0, verb=0;
+      arg out, echoOut, verbOut, amp=0.8, freq=6000, decay=0.2, pan=0, tone=0.5, echo=0, verb=0;
+      var tn   = tone.clip(0, 1);
       var d   = decay.clip(0.03, 2);
       var env = EnvGen.ar(Env([0, 1, 0], [0.003, d], [0, -5]), doneAction: 2);
       var w   = WhiteNoise.ar;
-      var jin = Mix([4700, 6100, 7350, 8900].collect { |f| BPF.ar(w, f, 0.04) }) * 4;
+      var jin = Mix([4700, 6100, 7350, 8900].collect { |f| BPF.ar(w, f * (0.75 + (tn * 0.5)), 0.04) }) * 4;
       var sig = (jin + (HPF.ar(w, 9000) * 0.3)) * env * (1 + (LFNoise1.ar(40) * 0.3));
       sends.value(Pan2.ar((sig * 0.7 * amp).clip2(1), pan), out, echoOut, verbOut, echo, verb);
     }).add;
 
     SynthDef(\brk_perc11, {   // music box: a tine, a bright partial and a pin's tick
-      arg out, echoOut, verbOut, amp=0.8, freq=1046, decay=0.5, pan=0, echo=0, verb=0;
+      arg out, echoOut, verbOut, amp=0.8, freq=1046, decay=0.5, pan=0, tone=0.5, echo=0, verb=0;
+      var tn   = tone.clip(0, 1);
       var f   = freq.clip(100, 6000);
       var d   = decay.clip(0.05, 4);
       var env = EnvGen.ar(Env.perc(0.001, d * 2.5, 1, -5), doneAction: 2);
-      var sig = (SinOsc.ar(f) + ((SinOsc.ar(f * 5.4) * 0.25) * EnvGen.ar(Env.perc(0.001, d * 0.3)))) * env * 0.5;
+      var sig = (SinOsc.ar(f) + ((SinOsc.ar(f * 5.4) * (tn * 0.5)) * EnvGen.ar(Env.perc(0.001, d * 0.3)))) * env * 0.5;
       sig = sig + (HPF.ar(WhiteNoise.ar, 5000) * EnvGen.ar(Env.perc(0.0002, 0.003)) * 0.3);
       sends.value(Pan2.ar(sig * amp, pan), out, echoOut, verbOut, echo, verb);
     }).add;
 
     SynthDef(\brk_perc12, {   // squeak: a toy's rising squeal with a wobble
-      arg out, echoOut, verbOut, amp=0.8, freq=660, decay=0.25, pan=0, echo=0, verb=0;
+      arg out, echoOut, verbOut, amp=0.8, freq=660, decay=0.25, pan=0, tone=0.5, echo=0, verb=0;
+      var tn   = tone.clip(0, 1);
       var f   = freq.clip(200, 4000);
       var d   = decay.clip(0.05, 1);
       var env = EnvGen.ar(Env([0, 1, 0.8, 0], [0.01, d * 0.6, d * 0.3], [0, 0, -4]), doneAction: 2);
-      var fm  = f * EnvGen.ar(Env([0.7, 1.3], [d], [2])) * (1 + (SinOsc.ar(18) * 0.03));
-      var sig = (SinOsc.ar(fm) + (SinOsc.ar(fm * 2) * 0.2)) * env * 0.45;
+      var fm  = f * EnvGen.ar(Env([0.7, 1.3], [d], [2])) * (1 + (SinOsc.ar(10 + (tn * 16)) * (tn * 0.06)));
+      var sig = (SinOsc.ar(fm) + (SinOsc.ar(fm * 2) * (tn * 0.4))) * env * 0.45;
       sends.value(Pan2.ar(sig * amp, pan), out, echoOut, verbOut, echo, verb);
     }).add;
 
     SynthDef(\brk_perc13, {   // talking drum: a pitch that rises under the hand and falls back
-      arg out, echoOut, verbOut, amp=0.8, freq=147, decay=0.4, pan=0, echo=0, verb=0;
+      arg out, echoOut, verbOut, amp=0.8, freq=147, decay=0.4, pan=0, tone=0.5, echo=0, verb=0;
+      var tn   = tone.clip(0, 1);
       var f    = freq.clip(40, 1500);
       var d    = decay.clip(0.05, 2);
       var env  = EnvGen.ar(Env.perc(0.001, d, 1, -4), doneAction: 2);
-      var pb   = EnvGen.ar(Env([1, 1.5, 1.2], [d * 0.25, d * 0.6], [2, -2]));
+      var pb   = EnvGen.ar(Env([1, 1 + (0.1 + (tn * 0.8)), 1 + (0.05 + (tn * 0.35))], [d * 0.25, d * 0.6], [2, -2]));
       var body = SinOsc.ar(f * pb) * env;
       var slap = BPF.ar(WhiteNoise.ar, (f * 5).clip(100, 12000), 0.4) * EnvGen.ar(Env.perc(0.0005, 0.01)) * 1.5;
       var sig  = ((body * 1.2) + slap).tanh * 0.75 * amp;
@@ -841,44 +855,48 @@ Engine_Breakage : CroneEngine {
     }).add;
 
     SynthDef(\brk_perc14, {   // wobble: a bass stab, a low-pass swept by an lfo
-      arg out, echoOut, verbOut, amp=0.8, freq=55, decay=0.35, pan=0, echo=0, verb=0;
+      arg out, echoOut, verbOut, amp=0.8, freq=55, decay=0.35, pan=0, tone=0.5, echo=0, verb=0;
+      var tn   = tone.clip(0, 1);
       var f   = freq.clip(30, 500);
       var d   = decay.clip(0.05, 2);
       var env = EnvGen.ar(Env([0, 1, 1, 0], [0.005, d, 0.03]), doneAction: 2);
       var lfo = LFTri.ar(4.0 / d.max(0.1)).range(0, 1);
       var sig = Saw.ar(f) + Saw.ar(f * 1.005);
-      sig = RLPF.ar(sig, (f * (1.5 + (lfo * 12))).clip(60, 8000), 0.2);
+      sig = RLPF.ar(sig, (f * (1.5 + (lfo * (2 + (tn * 20))))).clip(60, 8000), tn.linexp(0, 1, 0.5, 0.1));
       sig = (sig * 1.5).tanh * env * 0.6 * amp;
       sends.value(Pan2.ar(sig, pan), out, echoOut, verbOut, echo, verb);
     }).add;
 
     SynthDef(\brk_perc15, {   // crackle: a burst of vinyl crackle, freq = how dense
-      arg out, echoOut, verbOut, amp=0.8, freq=80, decay=0.3, pan=0, echo=0, verb=0;
+      arg out, echoOut, verbOut, amp=0.8, freq=80, decay=0.3, pan=0, tone=0.5, echo=0, verb=0;
+      var tn   = tone.clip(0, 1);
       var d    = decay.clip(0.05, 1);
       var env  = EnvGen.ar(Env.perc(0.001, d, 1, -3), doneAction: 2);
       var pops = Decay.ar(Dust.ar(freq.clip(20, 400)), 0.002) * WhiteNoise.ar;
-      var sig  = (HPF.ar(pops, 600) * 3 * env * amp).clip2(1);
+      var sig  = (HPF.ar(pops, tn.linexp(0, 1, 150, 3000)) * 3 * env * amp).clip2(1);
       sends.value(Pan2.ar(sig, pan), out, echoOut, verbOut, echo, verb);
     }).add;
 
     SynthDef(\brk_perc16, {   // vox: a sung formant chop
-      arg out, echoOut, verbOut, amp=0.8, freq=220, decay=0.2, pan=0, echo=0, verb=0;
+      arg out, echoOut, verbOut, amp=0.8, freq=220, decay=0.2, pan=0, tone=0.5, echo=0, verb=0;
+      var tn   = tone.clip(0, 1);
       var f   = freq.clip(60, 1200);
       var d   = decay.clip(0.03, 1);
       var env = EnvGen.ar(Env([0, 1, 0.7, 0], [0.005, d * 0.6, d * 0.3], [0, -1, -4]), doneAction: 2);
       var src = Saw.ar(f * (1 + (SinOsc.ar(5) * 0.01)));
-      var fm  = EnvGen.ar(Env([0.8, 1.2], [d], [0]));
+      var fm  = EnvGen.ar(Env([0.8, 1.2], [d], [0])) * (0.65 + (tn * 0.7));
       var sig = (BPF.ar(src, 700 * fm, 0.15) + (BPF.ar(src, 1200 * fm, 0.12) * 0.7)) + (BPF.ar(src, 2600 * fm, 0.1) * 0.3);
       sig = (sig * 3).tanh * env * 1.0 * amp;
       sends.value(Pan2.ar(sig, pan), out, echoOut, verbOut, echo, verb);
     }).add;
 
     SynthDef(\brk_perc17, {   // syntom: an 80s electronic tom, a sine sweeping down
-      arg out, echoOut, verbOut, amp=0.8, freq=147, decay=0.35, pan=0, echo=0, verb=0;
+      arg out, echoOut, verbOut, amp=0.8, freq=147, decay=0.35, pan=0, tone=0.5, echo=0, verb=0;
+      var tn   = tone.clip(0, 1);
       var f   = freq.clip(40, 1500);
       var d   = decay.clip(0.05, 2);
       var env = EnvGen.ar(Env.perc(0.001, d, 1, -4), doneAction: 2);
-      var sw  = EnvGen.ar(Env([2.2, 1], [d * 0.5], [-3]));
+      var sw  = EnvGen.ar(Env([1.2 + (tn * 2.2), 1], [d * 0.5], [-3]));
       var nz  = BPF.ar(WhiteNoise.ar, (f * 4).clip(100, 12000), 0.5) * EnvGen.ar(Env.perc(0.001, 0.03)) * 0.8;
       var sig = (((SinOsc.ar(f * sw) * 1.2).tanh + nz) * env) * 0.7 * amp;
       sends.value(Pan2.ar(sig, pan), out, echoOut, verbOut, echo, verb);
@@ -1173,21 +1191,21 @@ Engine_Breakage : CroneEngine {
       ], voiceGroup);
     });
 
-    this.addCommand(\tom, "fffff", { |msg|
+    this.addCommand(\tom, "ffffff", { |msg|
       Synth(\brk_tom, [
         \out, mainBus.index, \echoOut, echoBus.index, \verbOut, verbBus.index,
         \amp, msg[1] * st[\tom_lvl], \freq, msg[2], \decay, msg[3], \pan, msg[4],
-        \bend, msg[5],
+        \bend, msg[5], \tone, msg[6],
         \echo, st[\tom_echo], \verb, st[\tom_verb]
       ], voiceGroup);
     });
 
-    this.addCommand(\perc, "fffff", { |msg|
+    this.addCommand(\perc, "ffffff", { |msg|
       Synth([\brk_perc1, \brk_perc2, \brk_perc3, \brk_perc4, \brk_perc5,
         \brk_perc6, \brk_perc7, \brk_perc8, \brk_perc9, \brk_perc10,
         \brk_perc11, \brk_perc12, \brk_perc13, \brk_perc14, \brk_perc15, \brk_perc16, \brk_perc17].clipAt(msg[5].asInteger - 1), [
         \out, mainBus.index, \echoOut, echoBus.index, \verbOut, verbBus.index,
-        \amp, msg[1] * st[\perc_lvl], \freq, msg[2], \decay, msg[3], \pan, msg[4],
+        \amp, msg[1] * st[\perc_lvl], \freq, msg[2], \decay, msg[3], \pan, msg[4], \tone, msg[6],
         \echo, st[\perc_echo], \verb, st[\perc_verb]
       ], voiceGroup);
     });

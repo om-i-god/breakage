@@ -49,8 +49,8 @@ All args floats unless noted. Every voice is a one-shot that frees itself.
 | hat | amp decay tone pan type | type 1 analog 2 metallic (606) 3 crisp noise 4 acoustic (small cymbal) 5 lofi (crushed) 6 minipops (hissy cymbal) 7 dusty 8 click 9 disco. decay > 0.15 is "open"; any hat with decay <= 0.15 chokes the ringing open hat |
 | ride | amp decay tone pan | |
 | shaker | amp decay pan | |
-| tom | amp hz decay pan bend | bend in semitones |
-| perc | amp hz decay pan kind | 1 conga 2 bongo 3 cowbell 4 clave 5 acid (resonant saw squelch) 6 metal (struck pipe) 7 log (wood) 8 plink (prepared piano) 9 guiro 10 tambourine 11 music box 12 squeak 13 talking drum 14 wobble 15 crackle 16 vox 17 syntom |
+| tom | amp hz decay pan bend tone | bend in semitones; tone 0..1 (skin + drive) |
+| perc | amp hz decay pan kind tone | tone 0..1, each kind's own timbre (acid: sweep + resonance, metal: fm index, plink: bolt buzz, wobble: depth, vox: vowel ...); 1 conga 2 bongo 3 cowbell 4 clave 5 acid (resonant saw squelch) 6 metal (struck pipe) 7 log (wood) 8 plink (prepared piano) 9 guiro 10 tambourine 11 music box 12 squeak 13 talking drum 14 wobble 15 crackle 16 vox 17 syntom |
 | tick | amp kind hz pan | 1 click 2 blip 3 crush 4 ring 5 chirp (fm) 6 zap 7 error 8 pop |
 | brk | amp pos len rate pan | play the loaded break from `pos` (0..1 of file) for `len` seconds at `rate` (negative = backwards from pos). monophonic: a new slice fades out the last one in ~3 ms. no-op if nothing loaded |
 | break_load | path (string, "s") | load a sound file (mono or stereo) into the break buffer |

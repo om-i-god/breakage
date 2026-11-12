@@ -4,6 +4,7 @@
 --
 -- E1-E3: the current page
 --   play: energy / chaos / dub
+--   key: root / scale / follow its key
 --   sound: kick tune / decay / snare
 --   punch: kick drive / punch / snare tone
 --   voices: kick / snare / hat model
@@ -904,6 +905,7 @@ local PART_LVL = {kick = "kick_lvl", snare = "snare_lvl", clap = "clap_lvl", hat
 
 local PAGES = {
   {name = "play",  {"_energy", 1}, {"chaos", 1},      {"dub", 1}},
+  {name = "key",   {"root", 1},    {"scale", 1},      {"follow_key", 1}},
   {name = "sound", {"kick_tune", 1}, {"kick_decay", 1}, {"snare_tune", 1}},
   {name = "punch", {"kick_drive", 1}, {"kick_punch", 1}, {"snare_tone", 1}},
   {name = "voices", {"kick_model", 1}, {"snare_model", 1}, {"hat_model", 1}},
@@ -1023,9 +1025,16 @@ function enc(n, d)
         S.nudge = clamp(S.nudge + d * 0.03, -0.6, 0.6)
         flash(string.format("energy %+d", math.floor(S.nudge * 100 + 0.5)))
       end
+    elseif (id == "root" or id == "scale") and S.following and params:get("follow_key") > 1 then
+      -- gradient sends its key every bar and would undo this: say so
+      flash("key from gradient: E3 off")
     else
       params:delta(id, d * mult)
-      flash(params:lookup_param(id).name .. " " .. params:string(id))
+      if id == "root" or id == "scale" then
+        flash("key " .. NOTE_NAMES[params:get("root")] .. " " .. params:string("scale"))
+      else
+        flash(params:lookup_param(id).name .. " " .. params:string(id))
+      end
     end
   end
 end
@@ -1069,7 +1078,9 @@ local function draw_hud()
     local st
     if S.following then st = "<> gradient"
     else st = S.section or "-" end
-    if S.following and params:get("follow_key") > 1 then st = st .. " " .. NOTE_NAMES[tone_pc() + 1] end
+    if (S.following and params:get("follow_key") > 1) or PAGES[page].name == "key" then
+      st = st .. " " .. NOTE_NAMES[tone_pc() + 1]
+    end
     st = st .. " " .. (S.phrase_pos + 1) .. "/" .. S.phrase_len
     if S.kickless and S.playing then st = st .. " ~" end
     if S.halftime then st = st .. " half" end

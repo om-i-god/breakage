@@ -496,8 +496,28 @@ for pg = 1, 10 do
   key(1, 1); enc(2, 1); key(1, 0)
   enc(1, 2); enc(2, -1); enc(3, 1)
 end
+-- key page (page 2): E1 root, E2 scale; while following gradient's key it holds
+do
+  local fk, fol = params:get("follow_key"), S.following
+  key(1, 1); enc(2, -10); enc(2, 1); key(1, 0)
+  S.following = false
+  params:set("root", 10); params:set("scale", 1)
+  enc(1, 2); enc(2, 1)
+  assert(params:get("root") == 12 and S.root_pc == 11, "key page E1 should move the root")
+  assert(params:get("scale") == 2, "key page E2 should move the scale")
+  S.following = true; params:set("follow_key", 3)
+  enc(1, 1)
+  assert(params:get("root") == 12, "key page must not fight gradient's key while following")
+  enc(3, -2)
+  assert(params:get("follow_key") == 1, "key page E3 should turn key follow off")
+  enc(1, -3)
+  assert(params:get("root") == 9, "key page E1 should work once key follow is off")
+  print("key page ok")
+  params:set("follow_key", fk); params:set("root", 10); params:set("scale", 1); S.following = fol
+  key(1, 1); enc(2, -10); key(1, 0)
+end
 -- parts page: mute + solo
-key(1, 1); enc(2, 10); key(1, 0)
+key(1, 1); enc(2, 20); key(1, 0)
 enc(2, -10)
 key(2, 1); key(2, 0); assert(S.mute.kick and (S.gain.kick or 0) == 0, "parts mute")
 key(2, 1); key(2, 0)

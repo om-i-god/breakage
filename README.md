@@ -115,6 +115,7 @@ the kickless CC and the every-bar CCs need gradient with the `breakage-follow` c
 | page | E1 | E2 | E3 |
 |---|---|---|---|
 | play | energy | **chaos** | dub |
+| key | key (root) | scale | follow gradient's key (off, key, key + chords); while it follows, gradient sets the key, so turn this off to pick your own |
 | sound | kick tune | kick decay | snare tune |
 | punch | kick drive | kick punch | snare tone |
 | voices | kick model | snare model | hat model |

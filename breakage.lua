@@ -1351,7 +1351,13 @@ end
 -- lifecycle
 ------------------------------------------------------------------------
 
+-- keep the screen awake while this script runs (system screensaver = metro[36])
+local saved_screensaver_event
+
 function init()
+  saved_screensaver_event = metro[36].event
+  metro[36].event = function() end
+  metro[36]:stop()
   VIS.init()
   F.step_in_bar = function()
     if not S.playing or S.tstep == 0 then return nil end
@@ -1398,6 +1404,10 @@ function init()
 end
 
 function cleanup()
+  if saved_screensaver_event then
+    metro[36].event = saved_screensaver_event
+    metro[36]:start()
+  end
   stop()
   if draw_clock then clock.cancel(draw_clock) end
 end

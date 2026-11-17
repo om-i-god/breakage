@@ -145,6 +145,9 @@ _path = {audio = "/home/we/dust/audio/"}
 VT = 0
 util = {time = function() return VT end}
 _menu = {mode = false}
+metro = setmetatable({}, {__index = function(t, i)
+  local m = {event = function() end, start = function() end, stop = function() end}
+  rawset(t, i, m); return m end})
 audio = {file_info = function(p) return 2, 44100 * 4, 44100 end}   -- a 4 s stereo break
 
 dofile("breakage.lua")

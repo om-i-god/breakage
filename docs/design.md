@@ -22,7 +22,7 @@ dub techno / analog house kits up to drill'n'bass ratchet storms.
 ## Kits (8)
 
 A kit = a sound palette + groove-family weights + default swing/echo + its
-own visual theme. Switch with hold K2 + E2 (lands next bar), grid row 4, or
+own visual theme, locked to it. Switch with hold K1 + E1 (lands next bar), grid row 4, or
 `kit` param. `kit auto` (off / phrase edges) lets the conductor switch.
 
 | # | kit | sound | grooves |
@@ -83,7 +83,7 @@ out_hi` (0..1, as gradient) feed the visuals.
   kickless CCs, start/stop, optional note channel for tom tuning; times out to
   solo after 8 bars of silence, keeping the energy where it was.
 - `lib/visuals.lua` + `lib/vis/<kit>.lua` — one theme per kit; the theme
-  follows the kit (or fixed, param).
+  is always the kit's (VIS.names and KT.names share their order).
 - `lib/gridui.lua`.
 
 ## Following gradient
@@ -104,9 +104,9 @@ gradient: 127 while its kick is out). Defaults on both sides: ch 16, energy
 | K2 tap | drop (kick + hats out, 8 + 8 bars) |
 | K3 tap | fill now (type from chaos) |
 | K2 + K3 | play / stop |
-| hold K2 | E2 kit, E3 fill rate |
+| hold K2 | E2 root, E3 scale, E1 fill rate |
 | hold K3 | E2 bpm, E3 play mode |
-| hold K1 | E1 theme, E2 page, K3 mutate, K2 strip (break / glitch only) |
+| hold K1 | E1 kit, E2 page, E3 view, K3 mutate, K2 strip (break / glitch only) |
 
 Pages: play, sound (kick tune / kick decay / snare tune), space (swing /
 reverb / crush), break (break level / break pitch / slice chaos), parts (E2

@@ -491,8 +491,8 @@ key(1, 1); key(3, 1); key(3, 0); key(1, 0)            -- mutate
 key(1, 1); key(2, 1); key(2, 0); key(1, 0)            -- strip
 run_bars(1); assert(not S.want.snare and not S.want.kick, "strip left the kit in")
 key(1, 1); key(2, 1); key(2, 0); key(1, 0)
-key(2, 1); enc(2, 1); key(2, 0)                       -- kit next (pending)
-assert(S.kit_pending, "hold K2 + E2 didn't queue a kit")
+key(1, 1); enc(1, 1); key(1, 0)                       -- kit next (pending)
+assert(S.kit_pending, "hold K1 + E1 didn't queue a kit")
 run_bars(1); assert(not S.kit_pending, "kit didn't land on the bar")
 key(3, 1); enc(3, 1); key(3, 0)
 for pg = 1, 10 do
@@ -516,6 +516,20 @@ do
   enc(1, -3)
   assert(params:get("root") == 9, "key page E1 should work once key follow is off")
   print("key page ok")
+  -- hold K2: E2 root, E3 scale, both wrap; blocked while following the key
+  params:set("root", 12); params:set("scale", 1)
+  key(2, 1); enc(2, 1); enc(3, -1); key(2, 0)
+  assert(params:get("root") == 1 and S.root_pc == 0, "hold K2 + E2 should wrap B up to C")
+  assert(params:get("scale") == 12, "hold K2 + E3 should wrap the first scale round to the last")
+  params:set("follow_key", 2); S.following = true
+  key(2, 1); enc(2, 3); key(2, 0)
+  assert(params:get("root") == 1, "hold K2 must not fight gradient's key while following")
+  S.following = false; params:set("follow_key", 1)
+  local f0 = params:get("fills")
+  key(2, 1); enc(1, 1); key(2, 0)
+  assert(params:get("fills") == f0 + 1, "hold K2 + E1 should move fills")
+  params:set("fills", f0)
+  print("K2 key shortcut ok")
   params:set("follow_key", fk); params:set("root", 10); params:set("scale", 1); S.following = fol
   key(1, 1); enc(2, -10); key(1, 0)
 end
@@ -576,8 +590,8 @@ params:set("play_mode", 2); params:set("track_minutes", 4)
 run_bars(300)
 print("track mode ok, section", S.section)
 -- every frame draws without error, every theme
-for th = 1, 8 do
-  params:set("theme_mode", 2); params:set("theme", th)
+for th = 1, #KT.list do
+  S.kit = th
   for i = 1, 40 do polls.out_amp(math.random()); tick_all() end
 end
 print(string.format("done: %d bars, glitch %d, brk %d, grid refreshes %d",

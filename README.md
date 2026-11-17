@@ -10,7 +10,7 @@ a drummer for norns. dub techno and analog house up to drill'n'bass, from one sc
 - **energy** (0 to 1): how much plays and how hard. parts enter as it rises (hats, perc, kick, ticks, snare, toms, break, shaker, clap, ride) and leave as it falls, each fading over about two bars, with the entry points jittered every phrase. the conductor owns it: its own arc when solo, gradient's when following. E1 nudges it, and the nudge relaxes back over about 16 bars.
 - **chaos** (0 to 1): how far toward drill'n'bass. **chaos is yours alone; the conductor never moves it.** at the bottom you get steady four-on-the-floor or broken dub with swing and space. in the middle, ghost kicks and snares, displaced kicks, odd-length perc lanes and the occasional roll. at the top, ratchets up to 16 hits inside a 16th with rising pitch, a rearranged break, a micro-edit in most bars, halftime flips, a crushed bus and less swing. low energy with high chaos is sparse but twitchy: few hits, and those few stutter.
 
-**kits.** a kit is a sound palette, the grooves it likes, its own dub / swing / drive, and its own picture on the screen. any kit can be pushed to full chaos and keeps its sounds on the way.
+**kits.** a kit is a sound palette, the grooves it likes, its own dub / swing / drive, and its own picture on the screen: one choice, hold K1 + E1. any kit can be pushed to full chaos and keeps its sounds on the way.
 
 | kit | sound | grooves |
 |---|---|---|
@@ -107,9 +107,10 @@ the kickless CC and the every-bar CCs need gradient with the `breakage-follow` c
 | **K2 tap** | drop: kick and hats out for the rest of this 8 bars and the next. tap again to bring them back |
 | **K3 tap** | fill on the next beat |
 | **K2 + K3** | play / stop (starts on the next bar) |
-| **hold K2** + E2 / E3 | kit / fills (normal, busy, off) |
+| **hold K2** + E2 / E3 | root / scale (both wrap round; while key follow is on, gradient's key holds) |
+| **hold K2** + E1 | fills (normal, busy, off) |
 | **hold K3** + E2 / E3 | tempo / play mode |
-| **hold K1** + E1 / E2 / E3 | visual theme / page / view |
+| **hold K1** + E1 / E2 / E3 | kit (and its picture) / page / view |
 | **hold K1** + K3 / K2 | mutate / strip (down to the break, perc and glitch ticks; again to bring the kit back) |
 
 | page | E1 | E2 | E3 |
@@ -185,7 +186,7 @@ each kit has its own picture with three views (**VISUALS > view**, or hold K1 + 
 | **phonk** | a chase-cam on a coupe drifting down a wet road, on worn tape: tracking bands, tail-lights, smoke | from the driver's seat: the world tilting as the car drifts, a cassette winding across the phrase | a bridge at night: lights chasing along the arches, reflections shaking in the river |
 | **synthwave** | a striped sun sinking behind wireframe mountains over a racing grid, the gated snare flashing the grid | a sports car driving into the sunset past palms and chevron boards | a neon tunnel, a frame per beat, syntom chevrons flying at you |
 
-every picture also moves with the sound itself: the engine reports its overall level, lows, mids and highs, and each theme gives each of those its own job (in dub the lows breathe the cones, the mids open the horn mouths and the floor rings, the highs glint in the fog), so the screen moves between the hits too. **audio reactivity** (VISUALS, 0–10) sets how hard: 0 runs the pictures on the drum events alone, 10 doubles it. ratchets read as repeats, chaos fractures and multiplies the picture, energy fills it, kickless stretches change the light, and the glitch insert tears it. **VISUALS > theme** follows the kit, stays fixed, or moves on by itself (every 8 bars, each phrase, or a random one each phrase). on top of any theme: **mirror** folds the picture onto itself (left-right, top-bottom or all four ways), **trails** leaves an afterimage that dims away, **kick zoom** swells the picture on the kick, **contrast** bends the greys softer or harder, and **kick shake** jolts it. the **look** page puts mirror, trails and kick zoom on the encoders.
+every picture also moves with the sound itself: the engine reports its overall level, lows, mids and highs, and each theme gives each of those its own job (in dub the lows breathe the cones, the mids open the horn mouths and the floor rings, the highs glint in the fog), so the screen moves between the hits too. **audio reactivity** (VISUALS, 0–10) sets how hard: 0 runs the pictures on the drum events alone, 10 doubles it. ratchets read as repeats, chaos fractures and multiplies the picture, energy fills it, kickless stretches change the light, and the glitch insert tears it. the picture is always the kit's own: choosing a kit chooses its picture. on top of any theme: **mirror** folds the picture onto itself (left-right, top-bottom or all four ways), **trails** leaves an afterimage that dims away, **kick zoom** swells the picture on the kick, **contrast** bends the greys softer or harder, and **kick shake** jolts it. the **look** page puts mirror, trails and kick zoom on the encoders.
 
 top left: the kit (and the one coming). top right: `<> gradient` (with the key or chord root the drums are centred on) or the solo section, phrase position, `~` when kickless, `half` in a halftime bar. bottom: energy (`e`) and chaos (`x`) bars and the part lights.
 

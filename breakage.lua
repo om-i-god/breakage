@@ -17,16 +17,17 @@
 -- K2 tap: drop (kick + hats out)
 -- K3 tap: fill now
 -- K2+K3: play / stop
--- hold K2: E2 kit  E3 fills
+-- hold K2: E2 root  E3 scale  E1 fills
 -- hold K3: E2 bpm  E3 play mode
--- hold K1: E1 theme  E2 page  E3 view
+-- hold K1: E1 kit  E2 page  E3 view
+--   (each kit has its own picture)
 --   K3 mutate  K2 strip
 --
 -- PARAMS > FOLLOW: gradient's CC OUT
 -- on the same channel + ccs, and
 -- breakage follows its arc
 --
--- v0.4
+-- v0.5
 
 engine.name = "Breakage"
 
@@ -151,7 +152,6 @@ local main_clock, draw_clock
 local loop_gen = 0
 local k1, k2, k3 = false, false, false
 local k2_used, k3_used, k1_used = false, false, false
-local theme = 1
 local page = 1
 local part_sel = 1
 local msg, msg_t = nil, 0
@@ -394,23 +394,6 @@ local function apply_bar()
 end
 
 -- a kit's own feel: dub, swing and drive move to the kit's home on a change
--- VISUALS > theme: the cycling modes move the picture on by themselves
-local function theme_cycle()
-  local m = params:get("theme_mode")
-  if m < 3 then return end
-  local n = #VIS.names
-  local bar = S.bar or 0
-  if m == 3 then
-    if bar > 0 and bar % 8 == 0 then theme = theme % n + 1 end
-  elseif (S.phrase_pos or 1) == 0 and bar > 0 then
-    if m == 4 then theme = theme % n + 1
-    else
-      local t = math.random(n - 1)
-      theme = t >= theme and t + 1 or t
-    end
-  end
-end
-
 local function kit_feel()
   if params:get("kit_mix") ~= 2 then return end
   local kt = kit()
@@ -549,13 +532,11 @@ local function play_step()
     if S.kit_changed then
       S.kit_changed = nil
       params:set("kit", S.kit, true)
-      if params:get("theme_mode") == 1 then theme = S.kit end
       kit_feel()
       VIS.event("kit", S.kit)
       flash("kit " .. kit().name)
     end
     apply_bar()
-    theme_cycle()
     VIS.event("bar", S)
     if S.fill then VIS.event("fill", S.fill.kind) end
     if r == "stop" then stop(true); return end
@@ -806,7 +787,6 @@ local function set_kit(i)
     S.kit_pending = nil
     C.mutate(S, true)
     C.decide(S)
-    if params:get("theme_mode") == 1 then theme = i end
     kit_feel()
     VIS.event("kit", i)
     flash("kit " .. KT.names[i])
@@ -961,12 +941,24 @@ function key(n, z)
   end
 end
 
+-- root / scale, a detent a step, wrapping round (B > C, last scale > first)
+local function key_turn(id, d)
+  if S.following and params:get("follow_key") > 1 then
+    -- gradient sends its key every bar and would undo this: say so
+    flash("key from gradient: key page E3 off")
+    return
+  end
+  local n = id == "root" and #NOTE_NAMES or #SCALES
+  params:set(id, (params:get(id) - 1 + d) % n + 1)
+  flash("key " .. NOTE_NAMES[params:get("root")] .. " " .. params:string("scale"))
+end
+
 function enc(n, d)
   if k1 then
     k1_used = true
     if n == 1 then
-      params:set("theme_mode", 2)
-      params:delta("theme", d)
+      -- the kit and its picture are one choice
+      set_kit((S.kit_pending or S.kit) + (d > 0 and 1 or -1))
     elseif n == 2 then
       page = clamp(page + d, 1, #PAGES)
       flash("page " .. PAGES[page].name)
@@ -976,12 +968,11 @@ function enc(n, d)
     end
   elseif k2 then
     k2_used = true
-    if n == 2 then
-      local cur = S.kit_pending or S.kit
-      set_kit(cur + (d > 0 and 1 or -1))
-    elseif n == 3 then
+    if n == 1 then
       params:delta("fills", d)
       flash("fills " .. params:string("fills"))
+    else
+      key_turn(n == 2 and "root" or "scale", d)
     end
   elseif k3 then
     k3_used = true
@@ -1025,16 +1016,11 @@ function enc(n, d)
         S.nudge = clamp(S.nudge + d * 0.03, -0.6, 0.6)
         flash(string.format("energy %+d", math.floor(S.nudge * 100 + 0.5)))
       end
-    elseif (id == "root" or id == "scale") and S.following and params:get("follow_key") > 1 then
-      -- gradient sends its key every bar and would undo this: say so
-      flash("key from gradient: E3 off")
+    elseif id == "root" or id == "scale" then
+      key_turn(id, d)
     else
       params:delta(id, d * mult)
-      if id == "root" or id == "scale" then
-        flash("key " .. NOTE_NAMES[params:get("root")] .. " " .. params:string("scale"))
-      else
-        flash(params:lookup_param(id).name .. " " .. params:string(id))
-      end
+      flash(params:lookup_param(id).name .. " " .. params:string(id))
     end
   end
 end
@@ -1070,7 +1056,6 @@ local function draw_hud()
   local hud = params:get("hud")
   local top = kit().name
   if S.kit_pending then top = top .. " > " .. KT.names[S.kit_pending] end
-  if k1 then top = "theme " .. VIS.names[theme] end
   if hud < 3 or k1 then text_box(1, 7, top, S.playing and 12 or 5) end
   if page ~= 1 and not k1 then text_box(1, 15, PAGES[page].name, 6) end
 
@@ -1078,7 +1063,7 @@ local function draw_hud()
     local st
     if S.following then st = "<> gradient"
     else st = S.section or "-" end
-    if (S.following and params:get("follow_key") > 1) or PAGES[page].name == "key" then
+    if (S.following and params:get("follow_key") > 1) or PAGES[page].name == "key" or k2 then
       st = st .. " " .. NOTE_NAMES[tone_pc() + 1]
     end
     st = st .. " " .. (S.phrase_pos + 1) .. "/" .. S.phrase_len
@@ -1130,8 +1115,11 @@ local function draw_hud()
   end
 
   local hint
-  if k1 then hint = "E1 theme E2 page E3 view"
-  elseif k2 and not k3 then hint = "E2 kit  E3 fills"
+  if k1 then hint = "E1 kit E2 page E3 view"
+  elseif k2 and not k3 then
+    -- once turned, show what was set (the key, or fills)
+    local fresh = msg and util.time() - msg_t < 1.5
+    hint = (k2_used and fresh) and msg or "E2 root  E3 scale"
   elseif k3 and not k2 then hint = "E2 bpm  E3 " .. params:string("play_mode") end
   if hint then
     text_box(64 - screen.text_extents(hint) / 2, 32, hint, 15)
@@ -1155,7 +1143,7 @@ local function draw_loop()
     if not _menu.mode then
       screen.clear()
       screen.aa(0)
-      VIS.draw(theme, S)
+      VIS.draw(S.kit, S)
       draw_hud()
       screen.update()
     end
@@ -1329,12 +1317,6 @@ local function setup_params()
   end
 
   params:add_separator("VISUALS")
-  params:add_option("theme_mode", "theme", {"follows the kit", "fixed", "cycles (8 bars)", "cycles (phrase)", "random (phrase)"}, 1)
-  params:set_action("theme_mode", function(v)
-    if v == 1 then theme = S.kit elseif v == 2 then theme = params:get("theme") end
-  end)
-  params:add_option("theme", "fixed theme", VIS.names, 1)
-  params:set_action("theme", function(v) if params:get("theme_mode") == 2 then theme = v end end)
   params:add_option("hud", "overlay", {"full", "minimal", "off"}, 1)
   params:add_number("vis_speed", "speed", 1, 10, 3)
   params:add_number("vis_brightness", "brightness", 1, 15, 10)
